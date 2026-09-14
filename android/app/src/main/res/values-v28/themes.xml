@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- API 28+: draw edge-to-edge into the camera cutout so notched devices
+         render consistently with Android 15+ enforced edge-to-edge. -->
+    <style name="Theme.RorkApp" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

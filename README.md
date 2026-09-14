@@ -1,2 +1,0 @@
-# Altercode
-Created by Rork

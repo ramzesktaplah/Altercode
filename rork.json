@@ -1,0 +1,18 @@
+{
+  "$schema": "https://rork.com/schema/rork.json",
+  "apps": [
+    {
+      "name": "AlterCode",
+      "path": "android",
+      "framework": "kotlin",
+      "settings": {
+        "androidPackage": "com.ai.altercode"
+      }
+    },
+    {
+      "name": "Functions",
+      "path": "functions",
+      "framework": "cloudflare"
+    }
+  ]
+}
