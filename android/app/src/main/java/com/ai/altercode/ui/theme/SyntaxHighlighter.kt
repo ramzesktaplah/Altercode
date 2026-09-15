@@ -27,20 +27,36 @@ object SyntaxHighlighter {
         "sealed", "when", "companion", "operator", "readonly", "abstract", "virtual"
     )
 
-    private fun keywords(language: CodeLanguage): Set<String> = when (language) {
-        CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
-        CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
-        CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
-        CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
-        CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
-        else -> commonKeywords
+    private val defaultLineComments = listOf("//")
+    private val pythonLineComments = listOf("#")
+    private val phpLineComments = listOf("//", "#")
+
+    // Optimization: Pre-calculate keyword sets and line comment lists per language once at object initialization.
+    // Prevents allocating new Set and List instances on every keystroke/highlight pass in CodeEditor.
+    private val keywordsByLanguage: Map<CodeLanguage, Set<String>> = CodeLanguage.entries.associateWith { language ->
+        when (language) {
+            CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
+            CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
+            CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
+            CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
+            CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
+            else -> commonKeywords
+        }
     }
 
-    private fun lineCommentTokens(language: CodeLanguage): List<String> = when (language) {
-        CodeLanguage.PYTHON -> listOf("#")
-        CodeLanguage.PHP -> listOf("//", "#")
-        else -> listOf("//")
+    private val lineCommentsByLanguage: Map<CodeLanguage, List<String>> = CodeLanguage.entries.associateWith { language ->
+        when (language) {
+            CodeLanguage.PYTHON -> pythonLineComments
+            CodeLanguage.PHP -> phpLineComments
+            else -> defaultLineComments
+        }
     }
+
+    private fun keywords(language: CodeLanguage): Set<String> =
+        keywordsByLanguage[language] ?: commonKeywords
+
+    private fun lineCommentTokens(language: CodeLanguage): List<String> =
+        lineCommentsByLanguage[language] ?: defaultLineComments
 
     fun highlight(
         code: String,
