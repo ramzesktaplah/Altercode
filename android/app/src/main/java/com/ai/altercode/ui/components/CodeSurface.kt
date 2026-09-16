@@ -49,7 +49,7 @@ fun CodeBlock(
     val highlighted = remember(code, language, codeColors) {
         SyntaxHighlighter.highlight(code, language, codeColors)
     }
-    val lineCount = remember(code) { code.lines().size }
+    val lineCount = remember(code) { code.countLines() }
 
     Row(
         modifier = modifier
@@ -109,7 +109,7 @@ fun CodeEditor(
     enabled: Boolean = true
 ) {
     val codeColors = LocalCodeColors.current
-    val lineCount = remember(value.text) { value.text.lines().size }
+    val lineCount = remember(value.text) { value.text.countLines() }
     val transformation = remember(language, codeColors) {
         VisualTransformation { original ->
             androidx.compose.ui.text.input.TransformedText(
@@ -152,21 +152,29 @@ fun CodeEditor(
 @Composable
 private fun LineGutter(lineCount: Int) {
     val codeColors = LocalCodeColors.current
-    Column(
+    // Format line numbers into a single string to avoid rendering N separate Text composables in Compose.
+    val lineNumbersText = remember(lineCount) {
+        (1..lineCount).joinToString("\n")
+    }
+    Text(
+        text = lineNumbersText,
+        style = codeTextStyle,
+        color = codeColors.gutter,
+        textAlign = TextAlign.End,
         modifier = Modifier
             .width(if (lineCount >= 100) 42.dp else 32.dp)
             .padding(end = 12.dp)
-    ) {
-        for (line in 1..lineCount) {
-            Text(
-                text = line.toString(),
-                style = codeTextStyle,
-                color = codeColors.gutter,
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+    )
+}
+
+/** Non-allocating single-pass line count calculation to avoid String.lines() list allocations. */
+private fun CharSequence.countLines(): Int {
+    if (isEmpty()) return 1
+    var count = 1
+    for (i in 0 until length) {
+        if (this[i] == '\n') count++
     }
+    return count
 }
 
 /** Convenience wrapper to render an annotated string in the shared code style. */
