@@ -27,19 +27,24 @@ object SyntaxHighlighter {
         "sealed", "when", "companion", "operator", "readonly", "abstract", "virtual"
     )
 
-    private fun keywords(language: CodeLanguage): Set<String> = when (language) {
-        CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
-        CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
-        CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
-        CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
-        CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
-        else -> commonKeywords
+    // Performance optimization: Precompute keyword sets and comment tokens per language to avoid per-call allocations.
+    private val keywordsByLanguage: Map<CodeLanguage, Set<String>> = CodeLanguage.entries.associateWith { lang ->
+        when (lang) {
+            CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
+            CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
+            CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
+            CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
+            CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
+            else -> commonKeywords
+        }
     }
 
-    private fun lineCommentTokens(language: CodeLanguage): List<String> = when (language) {
-        CodeLanguage.PYTHON -> listOf("#")
-        CodeLanguage.PHP -> listOf("//", "#")
-        else -> listOf("//")
+    private val lineCommentsByLanguage: Map<CodeLanguage, List<String>> = CodeLanguage.entries.associateWith { lang ->
+        when (lang) {
+            CodeLanguage.PYTHON -> listOf("#")
+            CodeLanguage.PHP -> listOf("//", "#")
+            else -> listOf("//")
+        }
     }
 
     fun highlight(
@@ -47,8 +52,8 @@ object SyntaxHighlighter {
         language: CodeLanguage,
         colors: CodeColors
     ): AnnotatedString = buildAnnotatedString {
-        val keywordSet = keywords(language)
-        val lineComments = lineCommentTokens(language)
+        val keywordSet = keywordsByLanguage.getValue(language)
+        val lineComments = lineCommentsByLanguage.getValue(language)
         var index = 0
         val length = code.length
 
@@ -123,6 +128,24 @@ object SyntaxHighlighter {
             if (char.isWhitespace()) {
                 append(char)
                 index++
+                continue
+            }
+
+            // Performance optimization: Batch contiguous punctuation/symbols to reduce SpanStyle objects & string allocations
+            var pEnd = index
+            while (pEnd < length) {
+                val c = code[pEnd]
+                if (c.isWhitespace() || c.isLetterOrDigit() || c == '_' || c == '$' || c == '@' || c == '#' || c == '"' || c == '\'' || c == '`') {
+                    break
+                }
+                if (c == '/' && pEnd + 1 < length && (code[pEnd + 1] == '*' || code[pEnd + 1] == '/')) {
+                    break
+                }
+                pEnd++
+            }
+            if (pEnd > index) {
+                appendStyled(code.substring(index, pEnd), colors.punctuation)
+                index = pEnd
                 continue
             }
 

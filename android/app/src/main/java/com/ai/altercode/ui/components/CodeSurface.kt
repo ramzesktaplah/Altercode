@@ -49,7 +49,7 @@ fun CodeBlock(
     val highlighted = remember(code, language, codeColors) {
         SyntaxHighlighter.highlight(code, language, codeColors)
     }
-    val lineCount = remember(code) { code.lines().size }
+    val lineCount = remember(code) { countLines(code) }
 
     Row(
         modifier = modifier
@@ -109,7 +109,7 @@ fun CodeEditor(
     enabled: Boolean = true
 ) {
     val codeColors = LocalCodeColors.current
-    val lineCount = remember(value.text) { value.text.lines().size }
+    val lineCount = remember(value.text) { countLines(value.text) }
     val transformation = remember(language, codeColors) {
         VisualTransformation { original ->
             androidx.compose.ui.text.input.TransformedText(
@@ -147,6 +147,16 @@ fun CodeEditor(
             )
         }
     }
+}
+
+/** Counts lines in a string without allocating List<String> or line substring objects. */
+private fun countLines(text: String): Int {
+    if (text.isEmpty()) return 1
+    var count = 1
+    for (i in 0 until text.length) {
+        if (text[i] == '\n') count++
+    }
+    return count
 }
 
 @Composable
