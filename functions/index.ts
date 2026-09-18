@@ -61,15 +61,16 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    let response: Response;
     if (url.pathname === "/ping") {
-      return Response.json({ ok: true, now: new Date().toISOString() });
+      response = Response.json({ ok: true, now: new Date().toISOString() });
+    } else if (url.pathname === "/v1/chat" && request.method === "POST") {
+      response = await handleChat(request, env);
+    } else {
+      response = new Response("not found", { status: 404 });
     }
 
-    if (url.pathname === "/v1/chat" && request.method === "POST") {
-      return handleChat(request, env);
-    }
-
-    return new Response("not found", { status: 404 });
+    return withSecurityHeaders(response);
   },
 };
 
@@ -229,6 +230,26 @@ async function callGemini(
   );
 
   return relayResponse(upstream);
+}
+
+/** Security headers appended to all Worker responses to defend against MIME-sniffing and clickjacking. */
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+};
+
+/** Adds security headers to a Response object. */
+function withSecurityHeaders(response: Response): Response {
+  const newHeaders = new Headers(response.headers);
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    newHeaders.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
 }
 
 /** Relay the upstream response to the client without CORS headers.
