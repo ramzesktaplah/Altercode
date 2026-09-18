@@ -27,19 +27,31 @@ object SyntaxHighlighter {
         "sealed", "when", "companion", "operator", "readonly", "abstract", "virtual"
     )
 
+    // Performance optimization: Pre-calculated keyword sets per language to prevent allocation of new Sets on every render/keystroke.
+    private val pythonKeywords = commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
+    private val rustKeywords = commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
+    private val goKeywords = commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
+    private val swiftKeywords = commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
+    private val phpKeywords = commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
+
+    // Pre-calculated comment token lists to prevent allocation of new Lists on every syntax highlighting pass.
+    private val hashCommentTokens = listOf("#")
+    private val slashAndHashCommentTokens = listOf("//", "#")
+    private val slashCommentTokens = listOf("//")
+
     private fun keywords(language: CodeLanguage): Set<String> = when (language) {
-        CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
-        CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
-        CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
-        CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
-        CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
+        CodeLanguage.PYTHON -> pythonKeywords
+        CodeLanguage.RUST -> rustKeywords
+        CodeLanguage.GO -> goKeywords
+        CodeLanguage.SWIFT -> swiftKeywords
+        CodeLanguage.PHP -> phpKeywords
         else -> commonKeywords
     }
 
     private fun lineCommentTokens(language: CodeLanguage): List<String> = when (language) {
-        CodeLanguage.PYTHON -> listOf("#")
-        CodeLanguage.PHP -> listOf("//", "#")
-        else -> listOf("//")
+        CodeLanguage.PYTHON -> hashCommentTokens
+        CodeLanguage.PHP -> slashAndHashCommentTokens
+        else -> slashCommentTokens
     }
 
     fun highlight(
