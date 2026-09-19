@@ -1,0 +1,3 @@
+## 2026-03-29 - Compose LineGutter & Tokenizer Allocation Optimizations
+**Learning:** In Jetpack Compose code surfaces, emitting $N$ individual `Text` nodes inside a column loop for line gutters creates excessive composition overhead and layout measurement passes. Combining line numbers into a single multi-line `Text` composable reduces gutter composition nodes from $O(N)$ to $O(1)$. Furthermore, pre-computing token keyword sets and providing `Char` overloads in tokenizers avoids repetitive object/string allocations during live editor transformation passes.
+**Action:** Always render line gutters with a single multi-line `Text` composable in Jetpack Compose, and pre-allocate immutable lookup collections for live text transformation or syntax highlighting passes.

@@ -152,21 +152,19 @@ fun CodeEditor(
 @Composable
 private fun LineGutter(lineCount: Int) {
     val codeColors = LocalCodeColors.current
-    Column(
+    // Build line numbers as a single string to render one Text composable node instead of N nodes.
+    val gutterText = remember(lineCount) {
+        (1..lineCount).joinToString("\n")
+    }
+    Text(
+        text = gutterText,
+        style = codeTextStyle,
+        color = codeColors.gutter,
+        textAlign = TextAlign.End,
         modifier = Modifier
             .width(if (lineCount >= 100) 42.dp else 32.dp)
             .padding(end = 12.dp)
-    ) {
-        for (line in 1..lineCount) {
-            Text(
-                text = line.toString(),
-                style = codeTextStyle,
-                color = codeColors.gutter,
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
+    )
 }
 
 /** Convenience wrapper to render an annotated string in the shared code style. */
