@@ -117,6 +117,11 @@ fun CodeEditor(
 ) {
     val codeColors = LocalCodeColors.current
     val lineCount = remember(value.text) { value.text.lines().size }
+    // Current cursor line (1-based) drives the active gutter highlight.
+    val activeLine = remember(value.text, value.selection) {
+        val cursor = value.selection.end.coerceIn(0, value.text.length)
+        value.text.substring(0, cursor).count { it == '\n' } + 1
+    }
     val transformation = remember(language, codeColors) {
         VisualTransformation { original ->
             androidx.compose.ui.text.input.TransformedText(
@@ -144,7 +149,7 @@ fun CodeEditor(
             .bringIntoViewRequester(bringCursorIntoView)
             .padding(vertical = 14.dp)
     ) {
-        LineGutter(lineCount = lineCount)
+        LineGutter(lineCount = lineCount, activeLine = activeLine)
         Box {
             if (value.text.isEmpty()) {
                 Text(
@@ -158,6 +163,9 @@ fun CodeEditor(
                 onValueChange = onValueChange,
                 enabled = enabled,
                 textStyle = codeTextStyle.copy(color = codeColors.plain),
+                // Sits inside the Row's horizontal scroll, so the field gets
+                // an infinite width constraint and lays out one visual row
+                // per code line — gutter numbers always stay aligned.
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 visualTransformation = transformation,
                 onTextLayout = { layoutResult = it },
@@ -170,7 +178,7 @@ fun CodeEditor(
 }
 
 @Composable
-private fun LineGutter(lineCount: Int) {
+private fun LineGutter(lineCount: Int, activeLine: Int = 0) {
     val codeColors = LocalCodeColors.current
     Column(
         modifier = Modifier
@@ -181,7 +189,11 @@ private fun LineGutter(lineCount: Int) {
             Text(
                 text = line.toString(),
                 style = codeTextStyle,
-                color = codeColors.gutter,
+                color = if (line == activeLine) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    codeColors.gutter
+                },
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth()
             )

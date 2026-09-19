@@ -168,6 +168,19 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const safeTemp = Math.max(0, Math.min(2, Number(temperature) || 0.2));
   const safeMaxTokens = Math.max(1, Math.min(MAX_MAX_TOKENS, Math.floor(Number(maxTokens) || 4000)));
 
+  // Load-test dry-run: an opt-in header lets synthetic requests exercise the
+  // full validation + rate-limiting path and then stop, returning a fake
+  // response instead of calling Groq/Gemini. It cannot bypass validation or
+  // rate limiting and reveals no data, so it is safe to leave enabled.
+  if (request.headers.get("X-Dry-Run") === "altercode-loadtest") {
+    return Response.json({
+      id: `dry-run-${Date.now()}`,
+      choices: [
+        { index: 0, message: { role: "assistant", content: "dry-run" }, finish_reason: "stop" },
+      ],
+    });
+  }
+
   const useGroq = GROQ_ACTIONS.has(action);
 
   // Pick provider and build the upstream request

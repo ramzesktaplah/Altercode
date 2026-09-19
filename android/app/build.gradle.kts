@@ -13,8 +13,8 @@ android {
         applicationId = "com.ai.altercode"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "alter 2.5"
+        versionCode = 4
+        versionName = "alter 2.7"
 
         // Extract native debug symbols (from SQLCipher's .so) into the AAB
         // so Google Play Console can symbolicate native crash traces.
