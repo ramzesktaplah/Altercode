@@ -27,14 +27,20 @@ object SyntaxHighlighter {
         "sealed", "when", "companion", "operator", "readonly", "abstract", "virtual"
     )
 
-    private fun keywords(language: CodeLanguage): Set<String> = when (language) {
-        CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
-        CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
-        CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
-        CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
-        CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
-        else -> commonKeywords
+    // Pre-computed keyword sets per language to avoid allocating new Set instances on every highlight run.
+    private val languageKeywordsMap: Map<CodeLanguage, Set<String>> = CodeLanguage.entries.associateWith { lang ->
+        when (lang) {
+            CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
+            CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
+            CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
+            CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
+            CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
+            else -> commonKeywords
+        }
     }
+
+    private fun keywords(language: CodeLanguage): Set<String> =
+        languageKeywordsMap[language] ?: commonKeywords
 
     private fun lineCommentTokens(language: CodeLanguage): List<String> = when (language) {
         CodeLanguage.PYTHON -> listOf("#")
@@ -126,7 +132,7 @@ object SyntaxHighlighter {
                 continue
             }
 
-            appendStyled(char.toString(), colors.punctuation)
+            appendStyled(char, colors.punctuation)
             index++
         }
     }
@@ -151,5 +157,12 @@ object SyntaxHighlighter {
         color: androidx.compose.ui.graphics.Color
     ) {
         withStyle(SpanStyle(color = color)) { append(text) }
+    }
+
+    private fun androidx.compose.ui.text.AnnotatedString.Builder.appendStyled(
+        char: Char,
+        color: androidx.compose.ui.graphics.Color
+    ) {
+        withStyle(SpanStyle(color = color)) { append(char) }
     }
 }
