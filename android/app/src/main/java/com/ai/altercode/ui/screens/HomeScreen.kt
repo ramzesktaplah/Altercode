@@ -17,12 +17,15 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -122,7 +125,7 @@ private fun Modifier.pressScale(interactionSource: MutableInteractionSource): Mo
 }
 
 /** The workspace: language pickers, the code editor, and the four AI actions. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     onOpenSnippet: (Long) -> Unit,
@@ -148,6 +151,18 @@ fun HomeScreen(
         val id = openSnippetId ?: return@LaunchedEffect
         viewModel.consumeOpenSnippet()
         onOpenSnippet(id)
+    }
+
+    // While the keyboard is open, expand the editor so the code uses the
+    // freed-up space. We only auto-expand — the manual collapse toggle
+    // keeps working, and collapsing never forces the keyboard away.
+    // (WindowInsets.isImeVisible is read as plain state so this re-runs
+    // every time the IME appears or dismisses.)
+    val isImeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isImeVisible) {
+        if (isImeVisible && !state.isEditorExpanded) {
+            viewModel.toggleEditorExpanded()
+        }
     }
 
     LaunchedEffect(state.notice) {
@@ -214,7 +229,7 @@ fun HomeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 28.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {

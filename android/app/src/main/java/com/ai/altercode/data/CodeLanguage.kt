@@ -20,7 +20,15 @@ enum class CodeLanguage(
     RUST("rust", "Rust", "RS", Color(0xFFD98B5F)),
     SWIFT("swift", "Swift", "SW", Color(0xFFF05138)),
     PHP("php", "PHP", "PHP", Color(0xFF8892BF)),
-    KOTLIN("kotlin", "Kotlin", "KT", Color(0xFF9D7BEA));
+    KOTLIN("kotlin", "Kotlin", "KT", Color(0xFF9D7BEA)),
+    LUA("lua", "Lua", "LU", Color(0xFF7B9DE0)),
+    RUBY("ruby", "Ruby", "RB", Color(0xFFE0574F)),
+    C("c", "C", "C", Color(0xFFA8B9CC)),
+    DART("dart", "Dart", "DA", Color(0xFF3B9BE0)),
+    OBJECTIVE_C("objc", "Objective-C", "OC", Color(0xFF438EFF)),
+    R_LANG("r", "R", "R", Color(0xFF5A93D8)),
+    PERL("perl", "Perl", "PL", Color(0xFF7A85C4)),
+    HASKELL("haskell", "Haskell", "HS", Color(0xFF9C8CC4));
 
     val isConcrete: Boolean get() = this != AUTO
 
@@ -40,10 +48,16 @@ enum class CodeLanguage(
                     "py", "python3" -> PYTHON
                     "js", "node", "nodejs", "ecmascript" -> JAVASCRIPT
                     "ts", "tsx" -> TYPESCRIPT
-                    "c++", "cplusplus", "cxx", "c" -> CPP
+                    "c++", "cplusplus", "cxx" -> CPP
+                    "c" -> C
                     "c#", "cs", "dotnet" -> CSHARP
                     "golang" -> GO
                     "kt" -> KOTLIN
+                    "rb" -> RUBY
+                    "objc", "objective-c", "objectivec" -> OBJECTIVE_C
+                    "rlang", "rscript" -> R_LANG
+                    "pl" -> PERL
+                    "hs" -> HASKELL
                     else -> null
                 }
         }

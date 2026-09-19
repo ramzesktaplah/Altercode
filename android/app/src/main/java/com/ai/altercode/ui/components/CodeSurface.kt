@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -17,10 +19,15 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
@@ -119,10 +126,22 @@ fun CodeEditor(
         }
     }
 
+    // Keeps the caret visible while typing: whenever the cursor moves, the
+    // scrollable container scrolls so the cursor rectangle stays in view.
+    // (BasicTextField alone doesn't scroll ancestors, so we drive it here.)
+    val bringCursorIntoView = remember { BringIntoViewRequester() }
+    var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    LaunchedEffect(value.selection) {
+        val layout = layoutResult ?: return@LaunchedEffect
+        val cursor = value.selection.end.coerceIn(0, value.text.length)
+        runCatching { bringCursorIntoView.bringIntoView(layout.getCursorRect(cursor)) }
+    }
+
     Row(
         modifier = modifier
             .verticalScroll(rememberScrollState())
             .horizontalScroll(rememberScrollState())
+            .bringIntoViewRequester(bringCursorIntoView)
             .padding(vertical = 14.dp)
     ) {
         LineGutter(lineCount = lineCount)
@@ -141,6 +160,7 @@ fun CodeEditor(
                 textStyle = codeTextStyle.copy(color = codeColors.plain),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 visualTransformation = transformation,
+                onTextLayout = { layoutResult = it },
                 modifier = Modifier
                     .defaultMinSize(minWidth = 240.dp)
                     .padding(end = 20.dp)
