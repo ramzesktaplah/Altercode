@@ -64,6 +64,15 @@ object CryptoKeyManager {
     }
 
     /**
+     * Clears the cached passphrase from memory by zeroing out the byte array.
+     */
+    @Synchronized
+    fun clearCachedPassphrase() {
+        cachedPassphrase?.fill(0)
+        cachedPassphrase = null
+    }
+
+    /**
      * Creates (or opens) an [EncryptedSharedPreferences] file backed by a
      * Keystore [MasterKey]. Used by [SettingsRepository] and [UsageTracker].
      */
