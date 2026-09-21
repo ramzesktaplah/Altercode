@@ -1,0 +1,3 @@
+## 2026-03-29 - SyntaxHighlighter Allocation-Free Rendering
+**Learning:** `SyntaxHighlighter.highlight` is invoked frequently during Compose recompositions, user typing in `CodeEditor`, and scrolling in `CodeBlock`. Generating language keyword sets/token lists per call and slicing token strings with `substring()` creates significant transient heap allocations and GC pressure on the main UI thread.
+**Action:** Precompute language keyword sets and comment tokens into static maps (`associateWith`) and use `AnnotatedString.Builder.append(CharSequence, start, end)` to append text ranges directly without allocating transient `String` objects.
