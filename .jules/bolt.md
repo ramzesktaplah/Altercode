@@ -1,0 +1,3 @@
+## 2026-03-09 - Pre-computing Language Keyword Sets in Syntax Highlighter
+**Learning:** `SyntaxHighlighter.highlight` runs on every recomposition/keystroke in Jetpack Compose `BasicTextField`. Pre-computing `Set<String>` keyword sets per language in a static lookup map avoids `Set` allocation and set-union (`+`) overhead on every keystroke, while appending `Char` directly avoids `String` allocations for punctuation.
+**Action:** When building custom Compose text transformers or syntax highlighters, pre-allocate language token rules statically and avoid intermediate object allocations in hot render loops.
