@@ -24,7 +24,7 @@ class UsageTracker(context: Context) {
         const val REWARD_RUNS = 3
 
         /** Ad unit IDs — replace with real AdMob unit IDs before production release. */
-        const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917" // Google's test unit
+        const val REWARDED_AD_UNIT_ID = "ca-app-pub-5940074004186936/6742687066" // Google's ads unit
 
         private const val KEY_RUNS_USED = "runs_used"
         private const val KEY_TOTAL_RUNS = "total_runs"
