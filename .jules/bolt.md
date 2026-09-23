@@ -1,0 +1,3 @@
+## 2026-03-22 - Jetpack Compose Editor Line Gutter & Tokenizer Allocations
+**Learning:** In Jetpack Compose code editors, `VisualTransformation` runs tokenizer routines on every keystroke. Dynamic set unions (`commonKeywords + setOf(...)`) and splitting strings (`code.lines().size`) during highlight/layout passes cause high GC pressure during typing. Additionally, rendering line gutters as individual `Text` nodes inside a `Column` scales Compose layout nodes linearly $O(N)$ with line count, creating layout overhead.
+**Action:** Precompute static language keyword sets in `SyntaxHighlighter`, use character counting (`count { it == '\n' } + 1`) for line numbers, and render line gutters in a single `Text` composable node backed by a remembered `AnnotatedString`.

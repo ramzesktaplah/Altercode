@@ -27,29 +27,37 @@ object SyntaxHighlighter {
         "sealed", "when", "companion", "operator", "readonly", "abstract", "virtual"
     )
 
-    private fun keywords(language: CodeLanguage): Set<String> = when (language) {
-        CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
-        CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
-        CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
-        CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
-        CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
-        CodeLanguage.LUA -> commonKeywords + setOf("local", "elseif", "nil", "repeat", "until", "require", "pairs", "ipairs", "print")
-        CodeLanguage.RUBY -> commonKeywords + setOf("require", "module", "nil", "puts", "attr_accessor", "begin", "rescue", "ensure", "elsif", "unless", "do", "end", "yield", "lambda", "proc")
-        CodeLanguage.C -> commonKeywords + setOf("sizeof", "typedef", "include", "define", "union", "extern", "signed", "unsigned", "NULL")
-        CodeLanguage.DART -> commonKeywords + setOf("late", "library", "get", "set", "mixin", "required", "print")
-        CodeLanguage.OBJECTIVE_C -> commonKeywords + setOf("NSLog", "nil", "YES", "NO", "instancetype", "nonatomic", "strong", "weak", "synthesize", "property")
-        CodeLanguage.R_LANG -> commonKeywords + setOf("library", "require", "TRUE", "FALSE", "NULL", "NA", "Inf", "sum", "mean", "matrix")
-        CodeLanguage.PERL -> commonKeywords + setOf("my", "our", "sub", "use", "no", "require", "print", "unless", "elsif", "foreach", "last", "next", "undef")
-        CodeLanguage.HASKELL -> commonKeywords + setOf("module", "where", "let", "data", "newtype", "instance", "deriving", "Maybe", "Just", "Nothing", "import")
-        else -> commonKeywords
-    }
+    // Pre-allocated static comment token lists to avoid allocations during tokenization
+    private val doubleSlashComment = listOf("//")
+    private val hashComment = listOf("#")
+    private val doubleSlashAndHashComment = listOf("//", "#")
+    private val doubleDashComment = listOf("--")
+
+    // Pre-computed keyword sets per language to avoid set concatenation allocations on every highlight pass
+    private val languageKeywords: Map<CodeLanguage, Set<String>> = mapOf(
+        CodeLanguage.PYTHON to (commonKeywords + setOf("def", "elif", "None", "True", "False", "print")),
+        CodeLanguage.RUST to (commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")),
+        CodeLanguage.GO to (commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")),
+        CodeLanguage.SWIFT to (commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")),
+        CodeLanguage.PHP to (commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")),
+        CodeLanguage.LUA to (commonKeywords + setOf("local", "elseif", "nil", "repeat", "until", "require", "pairs", "ipairs", "print")),
+        CodeLanguage.RUBY to (commonKeywords + setOf("require", "module", "nil", "puts", "attr_accessor", "begin", "rescue", "ensure", "elsif", "unless", "do", "end", "yield", "lambda", "proc")),
+        CodeLanguage.C to (commonKeywords + setOf("sizeof", "typedef", "include", "define", "union", "extern", "signed", "unsigned", "NULL")),
+        CodeLanguage.DART to (commonKeywords + setOf("late", "library", "get", "set", "mixin", "required", "print")),
+        CodeLanguage.OBJECTIVE_C to (commonKeywords + setOf("NSLog", "nil", "YES", "NO", "instancetype", "nonatomic", "strong", "weak", "synthesize", "property")),
+        CodeLanguage.R_LANG to (commonKeywords + setOf("library", "require", "TRUE", "FALSE", "NULL", "NA", "Inf", "sum", "mean", "matrix")),
+        CodeLanguage.PERL to (commonKeywords + setOf("my", "our", "sub", "use", "no", "require", "print", "unless", "elsif", "foreach", "last", "next", "undef")),
+        CodeLanguage.HASKELL to (commonKeywords + setOf("module", "where", "let", "data", "newtype", "instance", "deriving", "Maybe", "Just", "Nothing", "import"))
+    )
+
+    private fun keywords(language: CodeLanguage): Set<String> =
+        languageKeywords[language] ?: commonKeywords
 
     private fun lineCommentTokens(language: CodeLanguage): List<String> = when (language) {
-        CodeLanguage.PYTHON -> listOf("#")
-        CodeLanguage.PHP -> listOf("//", "#")
-        CodeLanguage.LUA, CodeLanguage.HASKELL -> listOf("--")
-        CodeLanguage.RUBY, CodeLanguage.PERL, CodeLanguage.R_LANG -> listOf("#")
-        else -> listOf("//")
+        CodeLanguage.PYTHON, CodeLanguage.RUBY, CodeLanguage.PERL, CodeLanguage.R_LANG -> hashComment
+        CodeLanguage.PHP -> doubleSlashAndHashComment
+        CodeLanguage.LUA, CodeLanguage.HASKELL -> doubleDashComment
+        else -> doubleSlashComment
     }
 
     fun highlight(
