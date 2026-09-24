@@ -1,0 +1,3 @@
+## 2026-03-22 - Precompute Collections in High-Frequency Compose Tokenization
+**Learning:** Calling functions that instantiate and concatenate `Set` or `List` collections (e.g. `commonKeywords + setOf(...)`) inside a high-frequency real-time text input or Compose highlighting loop (`SyntaxHighlighter.highlight`) causes high GC pressure and unnecessary object allocations on every keystroke.
+**Action:** Precompute static mapping structures (`Map<CodeLanguage, Set<String>>`) at class/object initialization time so syntax highlighting calls perform cheap O(1) map lookups without allocation overhead.
