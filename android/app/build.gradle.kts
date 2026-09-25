@@ -13,7 +13,7 @@ android {
         applicationId = "com.ai.altercode"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4.0.1
+        versionCode = 5
         versionName = "alter 2.7"
 
         // Extract native debug symbols (from SQLCipher's .so) into the AAB
