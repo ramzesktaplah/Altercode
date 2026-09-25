@@ -14,7 +14,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 5
-        versionName = "alter 2.7"
+        versionName = "alter 2.8"
 
         // Extract native debug symbols (from SQLCipher's .so) into the AAB
         // so Google Play Console can symbolicate native crash traces.
