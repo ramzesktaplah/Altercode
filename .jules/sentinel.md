@@ -1,0 +1,4 @@
+## 2026-03-30 - Header Sanitization and Chat Message Validation in Worker Proxies
+**Vulnerability:** Untrusted client headers (`X-Device-Id`, `CF-Connecting-IP`, `X-Forwarded-For`) and non-string/null chat message payloads were passed directly to Durable Object fetch headers and internal character counting functions without sanitization or strict type validation.
+**Learning:** Cloudflare Worker `fetch()` throws uncaught exceptions when encountering invalid header value characters (such as CR/LF), resulting in 500 status responses. Additionally, non-string `content` in chat payloads bypasses length checks (`msg.content?.length` evaluating to `0` or `undefined`).
+**Prevention:** Always sanitize untrusted HTTP headers with regex alphanumeric replacement before injecting them into sub-request headers, and strictly validate array item types and property types (`typeof m.content === "string"`) when handling JSON body payloads.
