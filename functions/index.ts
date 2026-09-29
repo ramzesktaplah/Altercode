@@ -125,7 +125,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  // Sanitize deviceId to prevent DO key pollution: allow only alphanumeric, hyphen, underscore (max 64 chars)
+  const deviceId = rawDeviceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
@@ -262,6 +264,7 @@ async function relayResponse(upstream: Response): Promise<Response> {
     status: upstream.status,
     headers: {
       "Content-Type": "application/json",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
