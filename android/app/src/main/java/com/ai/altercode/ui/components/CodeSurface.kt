@@ -122,12 +122,28 @@ fun CodeEditor(
         val cursor = value.selection.end.coerceIn(0, value.text.length)
         value.text.substring(0, cursor).count { it == '\n' } + 1
     }
+    // PERFORMANCE OPTIMIZATION: Memoize TransformedText by text content.
+    // BasicTextField calls transformation.filter() on every cursor tick, selection update,
+    // and re-layout. Caching avoids re-running SyntaxHighlighter when text is unchanged.
     val transformation = remember(language, codeColors) {
+        var lastText: String? = null
+        var lastTransformed: androidx.compose.ui.text.input.TransformedText? = null
+
         VisualTransformation { original ->
-            androidx.compose.ui.text.input.TransformedText(
-                SyntaxHighlighter.highlight(original.text, language, codeColors),
-                androidx.compose.ui.text.input.OffsetMapping.Identity
-            )
+            val currentText = original.text
+            val cached = lastTransformed
+            if (currentText == lastText && cached != null) {
+                cached
+            } else {
+                val highlighted = SyntaxHighlighter.highlight(currentText, language, codeColors)
+                val transformed = androidx.compose.ui.text.input.TransformedText(
+                    highlighted,
+                    androidx.compose.ui.text.input.OffsetMapping.Identity
+                )
+                lastText = currentText
+                lastTransformed = transformed
+                transformed
+            }
         }
     }
 
