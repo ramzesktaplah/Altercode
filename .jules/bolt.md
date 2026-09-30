@@ -1,0 +1,3 @@
+## 2026-03-22 - Precomputing Tokenizer Maps for Compose Highlighting
+**Learning:** In Jetpack Compose visual transformations and text field editing, `SyntaxHighlighter` runs on every keystroke and recomposition. Dynamically instantiating sets (`commonKeywords + setOf(...)`) and lists (`listOf(...)`) during parsing causes repeated GC allocations on the UI thread during code editing.
+**Action:** Always precompute language keyword sets and comment token lists into static maps (`Map<CodeLanguage, Set<String>>`) on class initialization, and overload char-based appenders to keep text transformations zero-allocation.
