@@ -255,13 +255,17 @@ async function relayResponse(upstream: Response): Promise<Response> {
     );
     return Response.json(
       { error: "AI provider request failed" },
-      { status: upstream.status },
+      {
+        status: upstream.status,
+        headers: { "X-Content-Type-Options": "nosniff" },
+      },
     );
   }
   return new Response(upstream.body, {
     status: upstream.status,
     headers: {
       "Content-Type": "application/json",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
