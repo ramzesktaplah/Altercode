@@ -24,6 +24,9 @@ const LIMIT_DAY = 200;
 
 class RateLimiter implements DurableObject {
   private state: DurableObjectState;
+  /** Optimization: Track schema initialization in-memory per Durable Object instance.
+   *  Avoids executing DDL (CREATE TABLE / CREATE INDEX) on every request. */
+  private schemaInitialized = false;
 
   constructor(state: DurableObjectState, _env: unknown) {
     this.state = state;
@@ -39,6 +42,18 @@ class RateLimiter implements DurableObject {
     return new Response("not found", { status: 404 });
   }
 
+  /** Ensures SQLite schema (table and timestamp index) are set up.
+   *  Creating index idx_requests_timestamp optimizes DELETE and COUNT(*) queries
+   *  from O(N) full table scans to O(log N) B-Tree index lookups. */
+  private ensureSchema(sql: SqlStorage): void {
+    if (this.schemaInitialized) return;
+    sql.exec(`CREATE TABLE IF NOT EXISTS requests (timestamp INTEGER)`);
+    sql.exec(
+      `CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp)`,
+    );
+    this.schemaInitialized = true;
+  }
+
   /**
    * Sliding-window check. Counts existing rows in three windows; if any
    * limit is exceeded, returns 429. Otherwise inserts the new timestamp
@@ -49,12 +64,9 @@ class RateLimiter implements DurableObject {
     const cutoff = now - WINDOW_DAY;
 
     const sql = this.state.storage.sql as SqlStorage;
+    this.ensureSchema(sql);
 
-    sql.exec(
-      `CREATE TABLE IF NOT EXISTS requests (timestamp INTEGER)`,
-    );
-
-    // Lazy cleanup: remove rows older than 24h.
+    // Lazy cleanup: remove rows older than 24h (indexed range delete).
     sql.exec(`DELETE FROM requests WHERE timestamp < ?`, cutoff);
 
     const countMinute = this.countSince(sql, now - WINDOW_MINUTE);
@@ -86,7 +98,7 @@ class RateLimiter implements DurableObject {
     return Response.json({ ok: true });
   }
 
-  /** Count rows with timestamp >= [since]. */
+  /** Count rows with timestamp >= [since] (uses B-Tree index lookup). */
   private countSince(sql: SqlStorage, since: number): number {
     const cursor = sql.exec(
       `SELECT COUNT(*) as n FROM requests WHERE timestamp >= ?`,
