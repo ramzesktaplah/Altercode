@@ -1,0 +1,3 @@
+## 2026-03-30 - Compose Syntax Highlighting Allocation Optimization
+**Learning:** High-frequency Compose `VisualTransformation` and text formatting functions (like `SyntaxHighlighter.highlight`) are invoked on every frame and keystroke during text editing. Creating collections (e.g. `commonKeywords + setOf(...)` or `listOf(...)`) inside highlight functions introduces significant GC pressure and jank. Precomputing static language maps and using zero-allocation primitives drastically improves editor smooth interaction.
+**Action:** Always precompute language keyword sets, comment lists, and character style helpers outside high-frequency tokenizer loops in syntax highlighters.
