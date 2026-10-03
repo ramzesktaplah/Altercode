@@ -38,6 +38,30 @@ const MAX_CONTENT_CHARS = 30_000;
 /** Maximum tokens the client can request. */
 const MAX_MAX_TOKENS = 8_000;
 
+/** Security headers added to all HTTP responses. */
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "Referrer-Policy": "no-referrer",
+};
+
+/**
+ * Attaches standard security headers to any outgoing HTTP response.
+ */
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 type Env = {
   GROQ_API_KEY: string;
   GOOGLE_AI_KEY: string;
@@ -59,19 +83,24 @@ interface ClientRequest {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-
-    if (url.pathname === "/ping") {
-      return Response.json({ ok: true, now: new Date().toISOString() });
-    }
-
-    if (url.pathname === "/v1/chat" && request.method === "POST") {
-      return handleChat(request, env);
-    }
-
-    return new Response("not found", { status: 404 });
+    const response = await handleRequest(request, env);
+    return withSecurityHeaders(response);
   },
 };
+
+async function handleRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+
+  if (url.pathname === "/ping") {
+    return Response.json({ ok: true, now: new Date().toISOString() });
+  }
+
+  if (url.pathname === "/v1/chat" && request.method === "POST") {
+    return handleChat(request, env);
+  }
+
+  return new Response("not found", { status: 404 });
+}
 
 async function handleChat(request: Request, env: Env): Promise<Response> {
   let body: ClientRequest;
