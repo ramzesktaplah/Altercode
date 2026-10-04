@@ -101,20 +101,32 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  // Only allow standard chat roles and a small fixed number of messages so
-  // callers can't smuggle extra developer/tool instructions upstream. The
-  // app's own client legitimately sends one "system" message (its prompt
-  // scaffolding) plus one "user" message.
-  const isAllowedShape =
-    messages.length <= 2 &&
-    messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
-    );
-  if (!isAllowedShape) {
+  // Validate message count, structure, and roles.
+  // Construct clean ChatMessage objects to prevent payload property injection.
+  if (!Array.isArray(messages) || messages.length > 2) {
     return Response.json(
       { error: "Invalid message roles or count" },
       { status: 400 },
     );
+  }
+
+  const sanitizedMessages: ChatMessage[] = [];
+  for (const m of messages) {
+    if (
+      !m ||
+      typeof m !== "object" ||
+      typeof m.content !== "string" ||
+      (m.role !== "user" && m.role !== "assistant" && m.role !== "system")
+    ) {
+      return Response.json(
+        { error: "Invalid message shape or roles" },
+        { status: 400 },
+      );
+    }
+    sanitizedMessages.push({
+      role: m.role,
+      content: m.content,
+    });
   }
 
   // ---- Server-side rate limiting ----
@@ -125,7 +137,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  // Sanitize device ID (alphanumeric, dash, underscore, capped at 64 chars) to avoid key pollution or header injection
+  const deviceId = rawDeviceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
@@ -153,8 +167,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 
   // Cap total message content to prevent abuse.
-  const totalChars = messages.reduce(
-    (sum, msg) => sum + (msg.content?.length ?? 0),
+  const totalChars = sanitizedMessages.reduce(
+    (sum, msg) => sum + msg.content.length,
     0,
   );
   if (totalChars > MAX_CONTENT_CHARS) {
@@ -165,8 +179,19 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 
   // Clamp temperature and maxTokens to safe ranges.
-  const safeTemp = Math.max(0, Math.min(2, Number(temperature) || 0.2));
-  const safeMaxTokens = Math.max(1, Math.min(MAX_MAX_TOKENS, Math.floor(Number(maxTokens) || 4000)));
+  const rawTemp = Number(temperature);
+  const safeTemp = Math.max(
+    0,
+    Math.min(2, Number.isNaN(rawTemp) ? 0.2 : rawTemp),
+  );
+  const rawTokens = Number(maxTokens);
+  const safeMaxTokens = Math.max(
+    1,
+    Math.min(
+      MAX_MAX_TOKENS,
+      Math.floor(Number.isNaN(rawTokens) ? 4000 : rawTokens),
+    ),
+  );
 
   // Load-test dry-run: an opt-in header lets synthetic requests exercise the
   // full validation + rate-limiting path and then stop, returning a fake
@@ -185,9 +210,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   // Pick provider and build the upstream request
   if (useGroq) {
-    return callGroq(env.GROQ_API_KEY, messages, safeTemp, safeMaxTokens);
+    return callGroq(env.GROQ_API_KEY, sanitizedMessages, safeTemp, safeMaxTokens);
   }
-  return callGemini(env.GOOGLE_AI_KEY, messages, safeTemp, safeMaxTokens);
+  return callGemini(env.GOOGLE_AI_KEY, sanitizedMessages, safeTemp, safeMaxTokens);
 }
 
 /** Call Groq's OpenAI-compatible chat completions endpoint. */
