@@ -24,6 +24,7 @@ const LIMIT_DAY = 200;
 
 class RateLimiter implements DurableObject {
   private state: DurableObjectState;
+  private initialized = false;
 
   constructor(state: DurableObjectState, _env: unknown) {
     this.state = state;
@@ -40,24 +41,50 @@ class RateLimiter implements DurableObject {
   }
 
   /**
-   * Sliding-window check. Counts existing rows in three windows; if any
-   * limit is exceeded, returns 429. Otherwise inserts the new timestamp
-   * and returns 200. Rows older than 24h are lazily purged on each call.
+   * Ensures the database schema and index exist.
+   * Executed once per Durable Object instance lifetime to avoid redundant DDL calls.
+   */
+  private ensureSchema(sql: SqlStorage) {
+    if (this.initialized) return;
+    sql.exec(
+      `CREATE TABLE IF NOT EXISTS requests (timestamp INTEGER);` +
+        `CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp);`,
+    );
+    this.initialized = true;
+  }
+
+  /**
+   * Sliding-window check.
+   *
+   * Optimization details:
+   * - Schema / Index: Lazily created once per DO instance lifetime to eliminate repeated DDL execution.
+   * - Single Query Aggregation: Batches all 3 window counts (minute, hour, day) into a single conditional
+   *   aggregation query (`COUNT(CASE WHEN ...)`), reducing SQLite queries from 3 to 1.
+   * - Indexed Lookup: Uses `idx_requests_timestamp` range scan (`timestamp >= cutoff`), avoiding full table scans.
+   * - Probabilistic Cleanup: Runs row purging only ~10% of the time, avoiding unnecessary write locks
+   *   and disk I/O on every request.
+   *
+   * Expected impact: Reduces DB operations per check from 5 sequential queries to 1 read query
+   * (plus 1 insert on allowed requests), significantly lowering latency and IOPS.
    */
   private async check(): Promise<Response> {
     const now = Date.now();
     const cutoff = now - WINDOW_DAY;
 
     const sql = this.state.storage.sql as SqlStorage;
+    this.ensureSchema(sql);
 
-    sql.exec(
-      `CREATE TABLE IF NOT EXISTS requests (timestamp INTEGER)`,
+    // Probabilistic cleanup (~10% of calls) to purge stale rows (>24h)
+    // without incurring write overhead on every single check.
+    if (Math.random() < 0.1) {
+      sql.exec(`DELETE FROM requests WHERE timestamp < ?`, cutoff);
+    }
+
+    const { countMinute, countHour, countDay } = this.getWindowCounts(
+      sql,
+      now,
     );
 
-    // Lazy cleanup: remove rows older than 24h.
-    sql.exec(`DELETE FROM requests WHERE timestamp < ?`, cutoff);
-
-    const countMinute = this.countSince(sql, now - WINDOW_MINUTE);
     if (countMinute >= LIMIT_MINUTE) {
       return Response.json(
         { error: "rate_limited", window: "minute", retryAfter: 60 },
@@ -65,7 +92,6 @@ class RateLimiter implements DurableObject {
       );
     }
 
-    const countHour = this.countSince(sql, now - WINDOW_HOUR);
     if (countHour >= LIMIT_HOUR) {
       return Response.json(
         { error: "rate_limited", window: "hour", retryAfter: 3600 },
@@ -73,7 +99,6 @@ class RateLimiter implements DurableObject {
       );
     }
 
-    const countDay = this.countSince(sql, cutoff);
     if (countDay >= LIMIT_DAY) {
       return Response.json(
         { error: "rate_limited", window: "day", retryAfter: 86400 },
@@ -86,18 +111,38 @@ class RateLimiter implements DurableObject {
     return Response.json({ ok: true });
   }
 
-  /** Count rows with timestamp >= [since]. */
-  private countSince(sql: SqlStorage, since: number): number {
+  /**
+   * Single query to compute window counts for minute, hour, and day using conditional aggregation.
+   */
+  private getWindowCounts(
+    sql: SqlStorage,
+    now: number,
+  ): { countMinute: number; countHour: number; countDay: number } {
+    const minCutoff = now - WINDOW_MINUTE;
+    const hourCutoff = now - WINDOW_HOUR;
+    const dayCutoff = now - WINDOW_DAY;
+
     const cursor = sql.exec(
-      `SELECT COUNT(*) as n FROM requests WHERE timestamp >= ?`,
-      since,
+      `SELECT
+        COUNT(CASE WHEN timestamp >= ? THEN 1 END) as m,
+        COUNT(CASE WHEN timestamp >= ? THEN 1 END) as h,
+        COUNT(*) as d
+       FROM requests
+       WHERE timestamp >= ?`,
+      minCutoff,
+      hourCutoff,
+      dayCutoff,
     );
+
     for (const row of cursor) {
-      const value = (row as Record<string, unknown>).n;
-      if (typeof value === "number") return value;
-      if (typeof value === "bigint") return Number(value);
-      return 0;
+      const r = row as Record<string, unknown>;
+      return {
+        countMinute: Number(r.m ?? 0),
+        countHour: Number(r.h ?? 0),
+        countDay: Number(r.d ?? 0),
+      };
     }
-    return 0;
+
+    return { countMinute: 0, countHour: 0, countDay: 0 };
   }
 }
