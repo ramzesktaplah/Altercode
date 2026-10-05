@@ -125,7 +125,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  // Sanitize device ID to alphanumeric/hyphen/underscore (max 64 chars) to prevent rate-limit key pollution or injection
+  const deviceId = rawDeviceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
@@ -248,6 +250,12 @@ async function callGemini(
  *  Error bodies from the provider are logged server-side only; clients
  *  receive a generic message plus the upstream status code. */
 async function relayResponse(upstream: Response): Promise<Response> {
+  const securityHeaders = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+  };
+
   if (!upstream.ok) {
     const detail = await upstream.text();
     console.warn(
@@ -255,13 +263,17 @@ async function relayResponse(upstream: Response): Promise<Response> {
     );
     return Response.json(
       { error: "AI provider request failed" },
-      { status: upstream.status },
+      {
+        status: upstream.status,
+        headers: securityHeaders,
+      },
     );
   }
   return new Response(upstream.body, {
     status: upstream.status,
     headers: {
       "Content-Type": "application/json",
+      ...securityHeaders,
     },
   });
 }
