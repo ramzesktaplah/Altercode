@@ -9,6 +9,12 @@ import com.ai.altercode.data.CodeLanguage
 /**
  * Small, dependency-free tokenizer that colorizes code for display and editing.
  * Handles comments, strings, numbers, keywords, call sites, and types.
+ *
+ * Performance optimization:
+ * - Keyword sets and line comment prefixes are pre-computed per [CodeLanguage] to avoid
+ *   allocating new [Set] and [List] objects on every keystroke during editor recomposition.
+ * - Consecutive punctuation characters are batched into a single [appendStyled] call to reduce
+ *   the number of [SpanStyle] objects created inside [AnnotatedString], improving Compose text layout speed.
  */
 object SyntaxHighlighter {
 
@@ -27,30 +33,40 @@ object SyntaxHighlighter {
         "sealed", "when", "companion", "operator", "readonly", "abstract", "virtual"
     )
 
-    private fun keywords(language: CodeLanguage): Set<String> = when (language) {
-        CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
-        CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
-        CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
-        CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
-        CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
-        CodeLanguage.LUA -> commonKeywords + setOf("local", "elseif", "nil", "repeat", "until", "require", "pairs", "ipairs", "print")
-        CodeLanguage.RUBY -> commonKeywords + setOf("require", "module", "nil", "puts", "attr_accessor", "begin", "rescue", "ensure", "elsif", "unless", "do", "end", "yield", "lambda", "proc")
-        CodeLanguage.C -> commonKeywords + setOf("sizeof", "typedef", "include", "define", "union", "extern", "signed", "unsigned", "NULL")
-        CodeLanguage.DART -> commonKeywords + setOf("late", "library", "get", "set", "mixin", "required", "print")
-        CodeLanguage.OBJECTIVE_C -> commonKeywords + setOf("NSLog", "nil", "YES", "NO", "instancetype", "nonatomic", "strong", "weak", "synthesize", "property")
-        CodeLanguage.R_LANG -> commonKeywords + setOf("library", "require", "TRUE", "FALSE", "NULL", "NA", "Inf", "sum", "mean", "matrix")
-        CodeLanguage.PERL -> commonKeywords + setOf("my", "our", "sub", "use", "no", "require", "print", "unless", "elsif", "foreach", "last", "next", "undef")
-        CodeLanguage.HASKELL -> commonKeywords + setOf("module", "where", "let", "data", "newtype", "instance", "deriving", "Maybe", "Just", "Nothing", "import")
-        else -> commonKeywords
+    // Pre-computed map of language -> keyword set to eliminate set allocations during highlighting
+    private val keywordsMap: Map<CodeLanguage, Set<String>> = CodeLanguage.entries.associateWith { lang ->
+        when (lang) {
+            CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
+            CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
+            CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
+            CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
+            CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
+            CodeLanguage.LUA -> commonKeywords + setOf("local", "elseif", "nil", "repeat", "until", "require", "pairs", "ipairs", "print")
+            CodeLanguage.RUBY -> commonKeywords + setOf("require", "module", "nil", "puts", "attr_accessor", "begin", "rescue", "ensure", "elsif", "unless", "do", "end", "yield", "lambda", "proc")
+            CodeLanguage.C -> commonKeywords + setOf("sizeof", "typedef", "include", "define", "union", "extern", "signed", "unsigned", "NULL")
+            CodeLanguage.DART -> commonKeywords + setOf("late", "library", "get", "set", "mixin", "required", "print")
+            CodeLanguage.OBJECTIVE_C -> commonKeywords + setOf("NSLog", "nil", "YES", "NO", "instancetype", "nonatomic", "strong", "weak", "synthesize", "property")
+            CodeLanguage.R_LANG -> commonKeywords + setOf("library", "require", "TRUE", "FALSE", "NULL", "NA", "Inf", "sum", "mean", "matrix")
+            CodeLanguage.PERL -> commonKeywords + setOf("my", "our", "sub", "use", "no", "require", "print", "unless", "elsif", "foreach", "last", "next", "undef")
+            CodeLanguage.HASKELL -> commonKeywords + setOf("module", "where", "let", "data", "newtype", "instance", "deriving", "Maybe", "Just", "Nothing", "import")
+            else -> commonKeywords
+        }
     }
 
-    private fun lineCommentTokens(language: CodeLanguage): List<String> = when (language) {
-        CodeLanguage.PYTHON -> listOf("#")
-        CodeLanguage.PHP -> listOf("//", "#")
-        CodeLanguage.LUA, CodeLanguage.HASKELL -> listOf("--")
-        CodeLanguage.RUBY, CodeLanguage.PERL, CodeLanguage.R_LANG -> listOf("#")
-        else -> listOf("//")
+    // Pre-computed map of language -> line comment prefixes
+    private val lineCommentTokensMap: Map<CodeLanguage, List<String>> = CodeLanguage.entries.associateWith { lang ->
+        when (lang) {
+            CodeLanguage.PYTHON -> listOf("#")
+            CodeLanguage.PHP -> listOf("//", "#")
+            CodeLanguage.LUA, CodeLanguage.HASKELL -> listOf("--")
+            CodeLanguage.RUBY, CodeLanguage.PERL, CodeLanguage.R_LANG -> listOf("#")
+            else -> listOf("//")
+        }
     }
+
+    private fun keywords(language: CodeLanguage): Set<String> = keywordsMap[language] ?: commonKeywords
+
+    private fun lineCommentTokens(language: CodeLanguage): List<String> = lineCommentTokensMap[language] ?: listOf("//")
 
     fun highlight(
         code: String,
@@ -136,8 +152,20 @@ object SyntaxHighlighter {
                 continue
             }
 
-            appendStyled(char.toString(), colors.punctuation)
-            index++
+            // Batch contiguous punctuation/special characters into a single styled span
+            var end = index + 1
+            while (end < length) {
+                val c = code[end]
+                if (c == '/' && end + 1 < length && code[end + 1] == '*') break
+                if (lineComments.any { code.startsWith(it, end) }) break
+                if (c == '"' || c == '\'' || c == '`') break
+                if (c.isDigit()) break
+                if (c.isLetter() || c == '_' || c == '$' || c == '@' || c == '#') break
+                if (c.isWhitespace()) break
+                end++
+            }
+            appendStyled(code.substring(index, end), colors.punctuation)
+            index = end
         }
     }
 
