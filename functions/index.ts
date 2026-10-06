@@ -10,6 +10,8 @@
 // - No CORS headers are emitted: browsers cannot call this proxy, so a
 //   malicious webpage can't burn the Groq/Gemini quota. The Android app is a
 //   native client and is unaffected by CORS.
+// - `X-Content-Type-Options: nosniff` header is included on all responses to
+//   prevent MIME-type sniffing vulnerabilities.
 // - Only `system`/`user`/`assistant` message roles are forwarded (max 2
 //   messages), so callers can't inject arbitrary developer/tool instructions.
 // - Upstream provider error bodies are never relayed to clients.
@@ -57,19 +59,29 @@ interface ClientRequest {
   maxTokens: number;
 }
 
+/** Helper to construct JSON responses with standard security headers. */
+function jsonResponse(data: unknown, init?: ResponseInit): Response {
+  const headers = new Headers(init?.headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  return Response.json(data, { ...init, headers });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/ping") {
-      return Response.json({ ok: true, now: new Date().toISOString() });
+      return jsonResponse({ ok: true, now: new Date().toISOString() });
     }
 
     if (url.pathname === "/v1/chat" && request.method === "POST") {
       return handleChat(request, env);
     }
 
-    return new Response("not found", { status: 404 });
+    return new Response("not found", {
+      status: 404,
+      headers: { "X-Content-Type-Options": "nosniff" },
+    });
   },
 };
 
@@ -78,7 +90,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   try {
     body = (await request.json()) as ClientRequest;
   } catch {
-    return Response.json(
+    return jsonResponse(
       { error: "Invalid JSON body" },
       { status: 400 },
     );
@@ -87,7 +99,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const { action, messages, temperature, maxTokens } = body;
 
   if (!action || !messages?.length) {
-    return Response.json(
+    return jsonResponse(
       { error: "Missing 'action' or 'messages'" },
       { status: 400 },
     );
@@ -95,7 +107,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   // Validate action against allow-list.
   if (!VALID_ACTIONS.has(action)) {
-    return Response.json(
+    return jsonResponse(
       { error: `Unknown action '${action}'` },
       { status: 400 },
     );
@@ -111,7 +123,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
       (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
     );
   if (!isAllowedShape) {
-    return Response.json(
+    return jsonResponse(
       { error: "Invalid message roles or count" },
       { status: 400 },
     );
@@ -141,7 +153,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   if (rateLimitResponse.status === 429) {
     const retryAfter = rateLimitResponse.headers.get("Retry-After") ?? "60";
-    return Response.json(
+    return jsonResponse(
       { error: "Too many requests. Please try again later." },
       {
         status: 429,
@@ -158,7 +170,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     0,
   );
   if (totalChars > MAX_CONTENT_CHARS) {
-    return Response.json(
+    return jsonResponse(
       { error: "Request too large" },
       { status: 413 },
     );
@@ -173,7 +185,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // response instead of calling Groq/Gemini. It cannot bypass validation or
   // rate limiting and reveals no data, so it is safe to leave enabled.
   if (request.headers.get("X-Dry-Run") === "altercode-loadtest") {
-    return Response.json({
+    return jsonResponse({
       id: `dry-run-${Date.now()}`,
       choices: [
         { index: 0, message: { role: "assistant", content: "dry-run" }, finish_reason: "stop" },
@@ -253,7 +265,7 @@ async function relayResponse(upstream: Response): Promise<Response> {
     console.warn(
       `Upstream AI provider returned ${upstream.status}: ${detail.slice(0, 500)}`,
     );
-    return Response.json(
+    return jsonResponse(
       { error: "AI provider request failed" },
       { status: upstream.status },
     );
@@ -262,6 +274,7 @@ async function relayResponse(upstream: Response): Promise<Response> {
     status: upstream.status,
     headers: {
       "Content-Type": "application/json",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
