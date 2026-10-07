@@ -56,7 +56,8 @@ fun CodeBlock(
     val highlighted = remember(code, language, codeColors) {
         SyntaxHighlighter.highlight(code, language, codeColors)
     }
-    val lineCount = remember(code) { code.lines().size }
+    // Calculate line count without allocating a List<String> on every recomposition.
+    val lineCount = remember(code) { if (code.isEmpty()) 1 else code.count { it == '\n' } + 1 }
 
     Row(
         modifier = modifier
@@ -116,7 +117,8 @@ fun CodeEditor(
     enabled: Boolean = true
 ) {
     val codeColors = LocalCodeColors.current
-    val lineCount = remember(value.text) { value.text.lines().size }
+    // Calculate line count without allocating a List<String> on every keystroke.
+    val lineCount = remember(value.text) { if (value.text.isEmpty()) 1 else value.text.count { it == '\n' } + 1 }
     // Current cursor line (1-based) drives the active gutter highlight.
     val activeLine = remember(value.text, value.selection) {
         val cursor = value.selection.end.coerceIn(0, value.text.length)
