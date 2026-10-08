@@ -1,0 +1,4 @@
+## 2026-03-29 - Input Validation and Object Sanitization in Worker Proxy
+**Vulnerability:** Upstream LLM proxy requests received un-sanitized message objects and header values. Non-string message content could bypass `MAX_CONTENT_CHARS` checks (since `({}).length` evaluates to `undefined`), and extraneous properties could smuggle unexpected LLM parameters upstream. Furthermore, un-sanitized headers passed to Durable Objects risks header injection.
+**Learning:** Always validate that array inputs are `Array.isArray()`, ensure `typeof content === 'string'`, sanitize headers before passing into `fetch` header options, and map objects into clean strictly-typed shapes before forwarding upstream.
+**Prevention:** Explicitly map client request fields into new objects with allowed fields (`{ role, content }`) and sanitize header strings using character allow-lists and length caps.

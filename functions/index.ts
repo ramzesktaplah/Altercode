@@ -86,7 +86,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const { action, messages, temperature, maxTokens } = body;
 
-  if (!action || !messages?.length) {
+  if (!action || !Array.isArray(messages) || messages.length === 0) {
     return Response.json(
       { error: "Missing 'action' or 'messages'" },
       { status: 400 },
@@ -102,13 +102,17 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 
   // Only allow standard chat roles and a small fixed number of messages so
-  // callers can't smuggle extra developer/tool instructions upstream. The
-  // app's own client legitimately sends one "system" message (its prompt
-  // scaffolding) plus one "user" message.
+  // callers can't smuggle extra developer/tool instructions upstream. Ensure
+  // message items are valid objects with string content to prevent character-limit
+  // bypasses or injection attacks.
   const isAllowedShape =
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        typeof m.content === "string" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system"),
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -116,6 +120,12 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
       { status: 400 },
     );
   }
+
+  // Sanitize messages array to strip extra parameters injected by callers.
+  const sanitizedMessages: ChatMessage[] = messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
 
   // ---- Server-side rate limiting ----
   // Key by client IP + device fingerprint so each device+IP combo
@@ -125,7 +135,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  // Sanitize deviceId to prevent HTTP header injection in Durable Object dispatch
+  const deviceId = rawDeviceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
@@ -153,8 +165,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 
   // Cap total message content to prevent abuse.
-  const totalChars = messages.reduce(
-    (sum, msg) => sum + (msg.content?.length ?? 0),
+  const totalChars = sanitizedMessages.reduce(
+    (sum, msg) => sum + msg.content.length,
     0,
   );
   if (totalChars > MAX_CONTENT_CHARS) {
@@ -185,9 +197,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   // Pick provider and build the upstream request
   if (useGroq) {
-    return callGroq(env.GROQ_API_KEY, messages, safeTemp, safeMaxTokens);
+    return callGroq(env.GROQ_API_KEY, sanitizedMessages, safeTemp, safeMaxTokens);
   }
-  return callGemini(env.GOOGLE_AI_KEY, messages, safeTemp, safeMaxTokens);
+  return callGemini(env.GOOGLE_AI_KEY, sanitizedMessages, safeTemp, safeMaxTokens);
 }
 
 /** Call Groq's OpenAI-compatible chat completions endpoint. */
