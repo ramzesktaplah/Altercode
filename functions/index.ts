@@ -38,6 +38,9 @@ const MAX_CONTENT_CHARS = 30_000;
 /** Maximum tokens the client can request. */
 const MAX_MAX_TOKENS = 8_000;
 
+/** Validates that a device ID header matches standard UUID format. */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type Env = {
   GROQ_API_KEY: string;
   GOOGLE_AI_KEY: string;
@@ -106,9 +109,15 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // app's own client legitimately sends one "system" message (its prompt
   // scaffolding) plus one "user" message.
   const isAllowedShape =
+    Array.isArray(messages) &&
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        typeof m.role === "string" &&
+        typeof m.content === "string" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system"),
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -121,11 +130,14 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // Key by client IP + device fingerprint so each device+IP combo
   // gets its own independent counter. Cloudflare sets CF-Connecting-IP
   // automatically; fall back to X-Forwarded-For if absent.
+  // X-Device-Id is strictly validated against UUID format to prevent
+  // rate limit bypass via header randomization or Durable Object instance proliferation.
   const clientIp =
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id")?.trim() ?? "";
+  const deviceId = UUID_REGEX.test(rawDeviceId) ? rawDeviceId : "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
