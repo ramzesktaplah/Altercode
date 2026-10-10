@@ -1,0 +1,3 @@
+## 2026-03-30 - Caching Syntax Highlighter Language Configs
+**Learning:** In Compose text editors and code blocks, `highlight()` runs frequently during keystrokes and recompositions. Computing language-specific keyword sets and line comment tokens dynamically via set concatenation (`set1 + set2`) on every call creates heavy allocation traffic and GC pressure. Precomputing these maps statically per `CodeLanguage` completely eliminates object allocations during highlighting.
+**Action:** Precompute static maps indexed by enum keys for language-specific configuration and syntax rules instead of constructing them dynamically per function call.
