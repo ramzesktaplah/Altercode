@@ -106,9 +106,14 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // app's own client legitimately sends one "system" message (its prompt
   // scaffolding) plus one "user" message.
   const isAllowedShape =
+    Array.isArray(messages) &&
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        typeof m.content === "string" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system"),
     );
   if (!isAllowedShape) {
     return Response.json(
