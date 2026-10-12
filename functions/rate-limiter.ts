@@ -24,6 +24,7 @@ const LIMIT_DAY = 200;
 
 class RateLimiter implements DurableObject {
   private state: DurableObjectState;
+  private initialized = false;
 
   constructor(state: DurableObjectState, _env: unknown) {
     this.state = state;
@@ -40,6 +41,20 @@ class RateLimiter implements DurableObject {
   }
 
   /**
+   * Optimization: Lazily initialize the table and timestamp index once per
+   * Durable Object instance lifetime. Creating an index on `timestamp` converts
+   * range-based window counts and cutoff deletions from O(N) full-table scans
+   * to O(log N) indexed queries, and avoiding redundant DDL execution on every
+   * check request saves SQLite schema parsing overhead.
+   */
+  private ensureSchema(sql: SqlStorage): void {
+    if (this.initialized) return;
+    sql.exec(`CREATE TABLE IF NOT EXISTS requests (timestamp INTEGER)`);
+    sql.exec(`CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp)`);
+    this.initialized = true;
+  }
+
+  /**
    * Sliding-window check. Counts existing rows in three windows; if any
    * limit is exceeded, returns 429. Otherwise inserts the new timestamp
    * and returns 200. Rows older than 24h are lazily purged on each call.
@@ -50,11 +65,9 @@ class RateLimiter implements DurableObject {
 
     const sql = this.state.storage.sql as SqlStorage;
 
-    sql.exec(
-      `CREATE TABLE IF NOT EXISTS requests (timestamp INTEGER)`,
-    );
+    this.ensureSchema(sql);
 
-    // Lazy cleanup: remove rows older than 24h.
+    // Lazy cleanup: remove rows older than 24h (indexed range delete).
     sql.exec(`DELETE FROM requests WHERE timestamp < ?`, cutoff);
 
     const countMinute = this.countSince(sql, now - WINDOW_MINUTE);
