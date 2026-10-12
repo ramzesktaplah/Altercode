@@ -108,7 +108,10 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const isAllowedShape =
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        (m.role === "user" || m.role === "assistant" || m.role === "system") &&
+        typeof m.content === "string" &&
+        m.content.length > 0,
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -125,7 +128,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "";
+  const deviceId = rawDeviceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
