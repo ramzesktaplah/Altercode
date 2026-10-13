@@ -183,48 +183,76 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const useGroq = GROQ_ACTIONS.has(action);
 
-  // Pick provider and build the upstream request
+  // Pick provider and build the upstream request. Gemini (Convert/Refactor)
+  // retries on transient upstream failures; if it is still failing after
+  // retries, fall back to Groq so code generation keeps working during
+  // provider outages instead of surfacing a 503 to the user.
   if (useGroq) {
-    return callGroq(env.GROQ_API_KEY, messages, safeTemp, safeMaxTokens);
+    return relayResponse(
+      await callWithRetry(() => fetchGroq(env.GROQ_API_KEY, messages, safeTemp, safeMaxTokens)),
+    );
   }
-  return callGemini(env.GOOGLE_AI_KEY, messages, safeTemp, safeMaxTokens);
-}
-
-/** Call Groq's OpenAI-compatible chat completions endpoint. */
-async function callGroq(
-  apiKey: string,
-  messages: ChatMessage[],
-  temperature: number,
-  maxTokens: number,
-): Promise<Response> {
-  const upstream = await fetch(
-    "https://api.groq.com/openai/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
-    },
+  const geminiResponse = await callWithRetry(() =>
+    fetchGemini(env.GOOGLE_AI_KEY, messages, safeTemp, safeMaxTokens),
   );
-
-  return relayResponse(upstream);
+  if (geminiResponse.ok) {
+    return relayResponse(geminiResponse);
+  }
+  console.warn(
+    `Gemini failed after retries (status ${geminiResponse.status}); falling back to Groq`,
+  );
+  return relayResponse(
+    await callWithRetry(() => fetchGroq(env.GROQ_API_KEY, messages, safeTemp, safeMaxTokens)),
+  );
 }
 
-/** Call Google Gemini's OpenAI-compatible chat completions endpoint. */
-async function callGemini(
+/** Retries an upstream call on 429/5xx with short linear backoff. */
+async function callWithRetry(attempt: () => Promise<Response>): Promise<Response> {
+  let last: Response | null = null;
+  for (let i = 0; i < 3; i++) {
+    const response = await attempt();
+    if (
+      response.ok ||
+      ![429, 500, 502, 503, 504].includes(response.status)
+    ) {
+      return response;
+    }
+    last = response;
+    await new Promise((resolve) => setTimeout(resolve, 400 * (i + 1)));
+  }
+  return last as Response;
+}
+
+/** Build the Groq chat-completions request (code analysis: Fix, Explain). */
+async function fetchGroq(
   apiKey: string,
   messages: ChatMessage[],
   temperature: number,
   maxTokens: number,
 ): Promise<Response> {
-  const upstream = await fetch(
+  return fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+    }),
+  });
+}
+
+/** Build the Gemini chat-completions request (code generation: Convert, Refactor). */
+async function fetchGemini(
+  apiKey: string,
+  messages: ChatMessage[],
+  temperature: number,
+  maxTokens: number,
+): Promise<Response> {
+  return fetch(
     "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     {
       method: "POST",
@@ -240,8 +268,6 @@ async function callGemini(
       }),
     },
   );
-
-  return relayResponse(upstream);
 }
 
 /** Relay the upstream response to the client without CORS headers.
