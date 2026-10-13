@@ -28,8 +28,8 @@ data class HomeUiState(
     val targetLanguage: CodeLanguage = CodeLanguage.TYPESCRIPT,
     val detectedLanguage: CodeLanguage? = null,
     val runningAction: CodeAction? = null,
-    /** Most recent action the user ran; drives which pickers are shown. */
-    val lastAction: CodeAction = CodeAction.CONVERT,
+    /** Action the user tapped; drives the target picker and the Generate button. */
+    val selectedAction: CodeAction = CodeAction.CONVERT,
     val error: String? = null,
     val notice: String? = null,
     val isEditorExpanded: Boolean = false,
@@ -90,6 +90,7 @@ class HomeViewModel(
                         code = handoff.code,
                         sourceLanguage = handoff.sourceLanguage,
                         targetLanguage = handoff.targetLanguage,
+                        selectedAction = handoff.action,
                         error = null,
                         notice = null
                     )
@@ -202,6 +203,12 @@ class HomeViewModel(
         }
     }
 
+    /** Selects the active action. Tap only changes the selection — nothing runs
+     *  until the user hits the Generate button. */
+    fun selectAction(action: CodeAction) {
+        _uiState.update { it.copy(selectedAction = action) }
+    }
+
     fun run(action: CodeAction) {
         val state = _uiState.value
         if (state.isRunning) return
@@ -246,7 +253,7 @@ class HomeViewModel(
         _uiState.update {
             it.copy(
                 runningAction = action,
-                lastAction = action,
+                selectedAction = action,
                 error = null,
                 notice = null,
                 freeRunsRemaining = usageTracker.freeRunsRemaining,

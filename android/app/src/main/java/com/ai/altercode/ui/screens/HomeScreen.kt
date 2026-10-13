@@ -33,6 +33,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
@@ -53,7 +54,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -224,68 +224,6 @@ fun HomeScreen(
         },
         bottomBar = {
             AlterCodeBottomBar(currentRoute = Routes.HOME, onSelect = onNavigateTab)
-        },
-        floatingActionButton = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 28.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val clearInteraction = remember { MutableInteractionSource() }
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        viewModel.clearCode()
-                    },
-                    modifier = Modifier.pressScale(clearInteraction),
-                    interactionSource = clearInteraction,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    shape = RoundedCornerShape(20.dp),
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Filled.DeleteSweep,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    },
-                    text = {
-                        Text(
-                            text = "Clear",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                )
-                val pasteInteraction = remember { MutableInteractionSource() }
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        viewModel.pasteFromClipboard()
-                    },
-                    modifier = Modifier.pressScale(pasteInteraction),
-                    interactionSource = pasteInteraction,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(20.dp),
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Filled.ContentPaste,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    },
-                    text = {
-                        Text(
-                            text = "Paste",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                )
-            }
         }
     ) { padding ->
         Column(
@@ -295,45 +233,24 @@ fun HomeScreen(
                 .imePadding()
                 .padding(horizontal = 16.dp)
         ) {
-            EditorCard(
-                state = state,
-                editorValue = editorValue,
-                onEditorChange = {
-                    editorValue = it
-                    viewModel.setCode(it.text)
-                },
-                onToggleExpand = viewModel::toggleEditorExpanded,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            )
-
-            AnimatedVisibility(
-                visible = state.error != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                ErrorBanner(
-                    message = state.error.orEmpty(),
-                    onDismiss = viewModel::dismissError
-                )
-            }
-
+            // Action buttons sit on top. Tapping one only selects it —
+            // nothing is generated until the Generate button is pressed.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(top = 14.dp, bottom = 4.dp),
+                    .padding(top = 6.dp, bottom = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 CodeAction.entries.forEach { action ->
                     ActionChip(
                         action = action,
+                        isSelected = state.selectedAction == action,
                         isRunning = state.runningAction == action,
                         enabled = !state.isRunning,
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.run(action)
+                            viewModel.selectAction(action)
                         }
                     )
                 }
@@ -349,13 +266,13 @@ fun HomeScreen(
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.setSourceLanguage(it)
                 },
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 10.dp)
             )
 
             // Convert is the only action with a second output language, so the
             // target picker slides away for Refactor / Fix / Explain.
             AnimatedVisibility(
-                visible = state.lastAction == CodeAction.CONVERT,
+                visible = state.selectedAction == CodeAction.CONVERT,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
@@ -372,8 +289,61 @@ fun HomeScreen(
                 )
             }
 
-            // Reserves the band the Paste button floats in, above the tab bar.
-            Spacer(Modifier.height(72.dp))
+            EditorCard(
+                state = state,
+                editorValue = editorValue,
+                onEditorChange = {
+                    editorValue = it
+                    viewModel.setCode(it.text)
+                },
+                onToggleExpand = viewModel::toggleEditorExpanded,
+                onPaste = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.pasteFromClipboard()
+                },
+                onClear = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.clearCode()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(top = 12.dp)
+            )
+
+            AnimatedVisibility(
+                visible = state.error != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                ErrorBanner(
+                    message = state.error.orEmpty(),
+                    onDismiss = viewModel::dismissError
+                )
+            }
+
+            val detected = state.detectedLanguage
+            val sourceLabel = when {
+                state.sourceLanguage.isConcrete -> state.sourceLanguage.label
+                detected != null -> detected.label
+                else -> "Auto"
+            }
+            val generateLabel = if (state.selectedAction == CodeAction.CONVERT) {
+                "Convert ($sourceLabel → ${state.targetLanguage.label})"
+            } else {
+                "${state.selectedAction.label} ($sourceLabel)"
+            }
+            GenerateButton(
+                label = generateLabel,
+                isRunning = state.isRunning,
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.run(state.selectedAction)
+                },
+                modifier = Modifier.padding(top = 12.dp)
+            )
+
+            Spacer(Modifier.height(12.dp))
         }
     }
 
@@ -510,6 +480,8 @@ private fun EditorCard(
     editorValue: TextFieldValue,
     onEditorChange: (TextFieldValue) -> Unit,
     onToggleExpand: () -> Unit,
+    onPaste: () -> Unit,
+    onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val borderAlpha by animateFloatAsState(
@@ -560,6 +532,22 @@ private fun EditorCard(
                 )
             }
             Spacer(Modifier.weight(1f))
+            IconButton(onClick = onPaste) {
+                Icon(
+                    imageVector = Icons.Filled.ContentPaste,
+                    contentDescription = "Paste from clipboard",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            IconButton(onClick = onClear) {
+                Icon(
+                    imageVector = Icons.Filled.DeleteSweep,
+                    contentDescription = "Clear editor",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             IconButton(onClick = onToggleExpand) {
                 Icon(
                     imageVector = if (state.isEditorExpanded) {
@@ -603,15 +591,16 @@ private fun EditorCard(
 @Composable
 private fun ActionChip(
     action: CodeAction,
+    isSelected: Boolean,
     isRunning: Boolean,
     enabled: Boolean,
     onClick: () -> Unit
 ) {
     FilterChip(
-        selected = isRunning,
-        enabled = enabled || isRunning,
+        selected = isSelected,
+        enabled = enabled,
         onClick = onClick,
-        shape = RoundedCornerShape(50),
+        shape = RoundedCornerShape(10.dp),
         label = {
             Text(
                 text = action.label,
@@ -644,13 +633,58 @@ private fun ActionChip(
         ),
         border = FilterChipDefaults.filterChipBorder(
             enabled = enabled,
-            selected = isRunning,
+            selected = isSelected,
             borderColor = MaterialTheme.colorScheme.outline,
             selectedBorderColor = MaterialTheme.colorScheme.primary,
             selectedBorderWidth = 1.dp
         ),
         modifier = Modifier.height(44.dp)
     )
+}
+
+/** Full-width run button under the editor: names the action and language it will run. */
+@Composable
+private fun GenerateButton(
+    label: String,
+    isRunning: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Button(
+        onClick = onClick,
+        enabled = !isRunning,
+        interactionSource = interaction,
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .pressScale(interaction)
+    ) {
+        if (isRunning) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = if (isRunning) "Working…" else label,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
 }
 
 /** Labeled, horizontally scrolling row of language chips (design ref: picker bands). */
