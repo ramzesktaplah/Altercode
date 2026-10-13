@@ -86,7 +86,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const { action, messages, temperature, maxTokens } = body;
 
-  if (!action || !messages?.length) {
+  if (typeof action !== "string" || !Array.isArray(messages) || !messages.length) {
     return Response.json(
       { error: "Missing 'action' or 'messages'" },
       { status: 400 },
@@ -95,8 +95,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   // Validate action against allow-list.
   if (!VALID_ACTIONS.has(action)) {
+    const safeAction = action.slice(0, 30).replace(/[^a-zA-Z0-9_-]/g, "");
     return Response.json(
-      { error: `Unknown action '${action}'` },
+      { error: safeAction ? `Unknown action '${safeAction}'` : "Invalid action" },
       { status: 400 },
     );
   }
