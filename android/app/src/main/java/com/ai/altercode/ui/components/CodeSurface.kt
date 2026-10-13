@@ -56,7 +56,9 @@ fun CodeBlock(
     val highlighted = remember(code, language, codeColors) {
         SyntaxHighlighter.highlight(code, language, codeColors)
     }
-    val lineCount = remember(code) { code.lines().size }
+    // Performance optimization (Bolt): Count newline characters directly to avoid splitting
+    // the code buffer into a List<String> on recomposition.
+    val lineCount = remember(code) { code.count { it == '\n' } + 1 }
 
     Row(
         modifier = modifier
@@ -116,11 +118,16 @@ fun CodeEditor(
     enabled: Boolean = true
 ) {
     val codeColors = LocalCodeColors.current
-    val lineCount = remember(value.text) { value.text.lines().size }
+    // Performance optimization (Bolt): Count newlines without creating a List<String> or Substring.
+    val lineCount = remember(value.text) { value.text.count { it == '\n' } + 1 }
     // Current cursor line (1-based) drives the active gutter highlight.
     val activeLine = remember(value.text, value.selection) {
         val cursor = value.selection.end.coerceIn(0, value.text.length)
-        value.text.substring(0, cursor).count { it == '\n' } + 1
+        var count = 1
+        for (i in 0 until cursor) {
+            if (value.text[i] == '\n') count++
+        }
+        count
     }
     val transformation = remember(language, codeColors) {
         VisualTransformation { original ->
