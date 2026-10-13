@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloseFullscreen
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -91,7 +92,6 @@ import com.ai.altercode.data.UsageTracker
 import com.ai.altercode.ui.components.AlterCodeBottomBar
 import com.ai.altercode.ui.components.AlterCodeMark
 import com.ai.altercode.ui.components.CodeEditor
-import com.ai.altercode.ui.components.LanguagePicker
 import com.ai.altercode.ui.components.LanguageTile
 import com.ai.altercode.ui.navigation.Routes
 
@@ -295,42 +295,6 @@ fun HomeScreen(
                 .imePadding()
                 .padding(horizontal = 16.dp)
         ) {
-            AnimatedVisibility(
-                visible = !state.isEditorExpanded,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    LanguagePicker(
-                        selected = state.sourceLanguage,
-                        options = CodeLanguage.sourceOptions,
-                        onSelect = viewModel::setSourceLanguage,
-                        showTile = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(
-                        imageVector = Icons.Filled.ArrowForward,
-                        contentDescription = "to",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(horizontal = 10.dp)
-                            .size(18.dp)
-                    )
-                    LanguagePicker(
-                        selected = state.targetLanguage,
-                        options = CodeLanguage.targetOptions,
-                        onSelect = viewModel::setTargetLanguage,
-                        showTile = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
             EditorCard(
                 state = state,
                 editorValue = editorValue,
@@ -359,7 +323,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(top = 14.dp, bottom = 6.dp),
+                    .padding(top = 14.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 CodeAction.entries.forEach { action ->
@@ -374,6 +338,38 @@ fun HomeScreen(
                     )
                 }
                 Spacer(Modifier.width(4.dp))
+            }
+
+            LanguageSection(
+                label = "Source Language",
+                labelIcon = Icons.Filled.Code,
+                selected = state.sourceLanguage,
+                options = CodeLanguage.sourceOptions,
+                onSelect = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.setSourceLanguage(it)
+                },
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            // Convert is the only action with a second output language, so the
+            // target picker slides away for Refactor / Fix / Explain.
+            AnimatedVisibility(
+                visible = state.lastAction == CodeAction.CONVERT,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                LanguageSection(
+                    label = "Target Language (Convert Output)",
+                    labelIcon = Icons.Filled.ArrowForward,
+                    selected = state.targetLanguage,
+                    options = CodeLanguage.targetOptions,
+                    onSelect = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.setTargetLanguage(it)
+                    },
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
 
             // Reserves the band the Paste button floats in, above the tab bar.
@@ -654,6 +650,87 @@ private fun ActionChip(
             selectedBorderWidth = 1.dp
         ),
         modifier = Modifier.height(44.dp)
+    )
+}
+
+/** Labeled, horizontally scrolling row of language chips (design ref: picker bands). */
+@Composable
+private fun LanguageSection(
+    label: String,
+    labelIcon: ImageVector,
+    selected: CodeLanguage,
+    options: List<CodeLanguage>,
+    onSelect: (CodeLanguage) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
+            Icon(
+                imageVector = labelIcon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { language ->
+                LanguageChip(
+                    language = language,
+                    isSelected = language == selected,
+                    onClick = { onSelect(language) }
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun LanguageChip(
+    language: CodeLanguage,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = isSelected,
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        label = {
+            Text(
+                text = language.label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium
+            )
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            labelColor = MaterialTheme.colorScheme.onSurface,
+            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+            selectedLabelColor = MaterialTheme.colorScheme.primary
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = isSelected,
+            borderColor = MaterialTheme.colorScheme.outline,
+            selectedBorderColor = MaterialTheme.colorScheme.primary,
+            selectedBorderWidth = 1.dp
+        ),
+        modifier = Modifier.height(38.dp)
     )
 }
 

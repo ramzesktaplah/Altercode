@@ -28,6 +28,8 @@ data class HomeUiState(
     val targetLanguage: CodeLanguage = CodeLanguage.TYPESCRIPT,
     val detectedLanguage: CodeLanguage? = null,
     val runningAction: CodeAction? = null,
+    /** Most recent action the user ran; drives which pickers are shown. */
+    val lastAction: CodeAction = CodeAction.CONVERT,
     val error: String? = null,
     val notice: String? = null,
     val isEditorExpanded: Boolean = false,
@@ -244,6 +246,7 @@ class HomeViewModel(
         _uiState.update {
             it.copy(
                 runningAction = action,
+                lastAction = action,
                 error = null,
                 notice = null,
                 freeRunsRemaining = usageTracker.freeRunsRemaining,
