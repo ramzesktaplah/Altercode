@@ -86,46 +86,53 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const { action, messages, temperature, maxTokens } = body;
 
-  if (!action || !messages?.length) {
+  if (typeof action !== "string" || !VALID_ACTIONS.has(action)) {
     return Response.json(
-      { error: "Missing 'action' or 'messages'" },
+      { error: "Invalid or unsupported action" },
       { status: 400 },
     );
   }
 
-  // Validate action against allow-list.
-  if (!VALID_ACTIONS.has(action)) {
+  if (
+    !Array.isArray(messages) ||
+    messages.length === 0 ||
+    messages.length > 2
+  ) {
     return Response.json(
-      { error: `Unknown action '${action}'` },
+      { error: "Invalid message count" },
       { status: 400 },
     );
   }
 
   // Only allow standard chat roles and a small fixed number of messages so
-  // callers can't smuggle extra developer/tool instructions upstream. The
-  // app's own client legitimately sends one "system" message (its prompt
-  // scaffolding) plus one "user" message.
-  const isAllowedShape =
-    messages.length <= 2 &&
-    messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
-    );
+  // callers can't smuggle extra developer/tool instructions upstream.
+  const isAllowedShape = messages.every(
+    (m) =>
+      m !== null &&
+      typeof m === "object" &&
+      typeof m.role === "string" &&
+      typeof m.content === "string" &&
+      (m.role === "user" || m.role === "assistant" || m.role === "system"),
+  );
   if (!isAllowedShape) {
     return Response.json(
-      { error: "Invalid message roles or count" },
+      { error: "Invalid message roles or structure" },
       { status: 400 },
     );
   }
 
   // ---- Server-side rate limiting ----
   // Key by client IP + device fingerprint so each device+IP combo
-  // gets its own independent counter. Cloudflare sets CF-Connecting-IP
-  // automatically; fall back to X-Forwarded-For if absent.
-  const clientIp =
+  // gets its own independent counter. Sanitize headers to prevent injection.
+  const rawIp =
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const clientIp = rawIp.replace(/[^\w.:-]/g, "").slice(0, 64) || "unknown";
+
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const deviceId = rawDeviceId.replace(/[^\w-]/g, "").slice(0, 128) || "unknown";
+
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
