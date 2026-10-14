@@ -1,0 +1,3 @@
+## 2026-03-31 - Precomputing Syntax Highlighter Data Structures & Direct Character Counting
+**Learning:** Calling `String.lines()` inside Jetpack Compose `remember` or during live text transformations creates intermediate `List<String>` allocations on every frame/re-composition. Similarly, constructing keyword `Set`s dynamically on each `highlight()` call causes redundant garbage collection overhead during code editing.
+**Action:** Precompute static language-keyed maps (`keywordsMap` and `lineCommentsMap`) at initialization time, and replace `String.lines().size` with zero-allocation character counting (`text.count { it == '\n' } + 1`).
