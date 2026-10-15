@@ -1,0 +1,3 @@
+## 2026-03-31 - Pre-compute keyword sets and comment tokens in Compose syntax highlighter
+**Learning:** `SyntaxHighlighter.highlight` is invoked on every keystroke in Compose `VisualTransformation`. Allocating new `Set` or `List` instances inside `highlight` causes frequent GC allocations and UI stutter on lower-end Android devices. Pre-computing language keyword sets and line comment tokens into static maps during object initialization eliminates runtime allocations.
+**Action:** When building custom syntax highlighters or Compose `VisualTransformation` helpers, pre-allocate and reuse token set lookup tables rather than building sets dynamically.
