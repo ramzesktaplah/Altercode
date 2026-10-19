@@ -117,16 +117,33 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     );
   }
 
+  // Cap total message content to prevent abuse before invoking Durable Object subrequests.
+  const totalChars = messages.reduce(
+    (sum, msg) => sum + (msg.content?.length ?? 0),
+    0,
+  );
+  if (totalChars > MAX_CONTENT_CHARS) {
+    return Response.json(
+      { error: "Request too large" },
+      { status: 413 },
+    );
+  }
+
   // ---- Server-side rate limiting ----
   // Key by client IP + device fingerprint so each device+IP combo
   // gets its own independent counter. Cloudflare sets CF-Connecting-IP
   // automatically; fall back to X-Forwarded-For if absent.
-  const clientIp =
+  const rawIp =
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
-  const rateLimitKey = `${clientIp}:${deviceId}`;
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+
+  // Security: Sanitize key components to prevent rate-limiting delimiter
+  // injection and key collision vulnerabilities (e.g. colons in X-Device-Id or IP).
+  const cleanIp = rawIp.replace(/[^a-fA-F0-9.:]/g, "").slice(0, 45) || "unknown";
+  const cleanDeviceId = rawDeviceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "unknown";
+  const rateLimitKey = `ip:${cleanIp}|dev:${cleanDeviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
     "https://do/check",
@@ -149,18 +166,6 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
           "Retry-After": retryAfter,
         },
       },
-    );
-  }
-
-  // Cap total message content to prevent abuse.
-  const totalChars = messages.reduce(
-    (sum, msg) => sum + (msg.content?.length ?? 0),
-    0,
-  );
-  if (totalChars > MAX_CONTENT_CHARS) {
-    return Response.json(
-      { error: "Request too large" },
-      { status: 413 },
     );
   }
 
