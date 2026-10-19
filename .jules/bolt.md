@@ -1,0 +1,3 @@
+## 2026-09-27 - Pre-compute Syntax Highlighter Keywords & Token Lists
+**Learning:** In Jetpack Compose editor and snippet components (`CodeEditor`, `CodeBlock`), `SyntaxHighlighter.highlight` is invoked on every single keystroke and composition layout pass. Computing `commonKeywords + setOf(...)` or returning `listOf(...)` inside tokenizing functions creates thousands of transient `Set` and `List` object allocations on the UI thread per second, leading to GC pressure and frame drops.
+**Action:** Always pre-compute static keyword sets and token maps keyed by `CodeLanguage` during singleton object initialization, and overload text appending methods with `Char` parameters to eliminate per-character `toString()` string allocations during parsing.
