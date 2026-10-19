@@ -1,0 +1,3 @@
+## 2026-03-30 - Syntax Highlighter Allocation & Lookup Optimization
+**Learning:** In Compose text editors/highlighters, calling set union operations (`+ setOf(...)`) or creating string substrings (`substring(index, index + 3)`, `char.toString()`) inside tokenizer loops creates high GC pressure during typing/scrolling. Pre-computing lookup maps for `CodeLanguage` and providing `Char`-overloaded builder helpers eliminates repetitive transient heap allocations.
+**Action:** When working on client-side text tokenizers or Compose visual transformations, pre-compute language-indexed lookup structures at `object` initialization time and avoid creating temporary `String` instances inside hot loops.
