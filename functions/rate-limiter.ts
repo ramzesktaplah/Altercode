@@ -61,7 +61,7 @@ class RateLimiter implements DurableObject {
     if (countMinute >= LIMIT_MINUTE) {
       return Response.json(
         { error: "rate_limited", window: "minute", retryAfter: 60 },
-        { status: 429 },
+        { status: 429, headers: { "Retry-After": "60" } },
       );
     }
 
@@ -69,7 +69,7 @@ class RateLimiter implements DurableObject {
     if (countHour >= LIMIT_HOUR) {
       return Response.json(
         { error: "rate_limited", window: "hour", retryAfter: 3600 },
-        { status: 429 },
+        { status: 429, headers: { "Retry-After": "3600" } },
       );
     }
 
@@ -77,7 +77,7 @@ class RateLimiter implements DurableObject {
     if (countDay >= LIMIT_DAY) {
       return Response.json(
         { error: "rate_limited", window: "day", retryAfter: 86400 },
-        { status: 429 },
+        { status: 429, headers: { "Retry-After": "86400" } },
       );
     }
 
