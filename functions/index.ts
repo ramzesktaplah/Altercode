@@ -86,7 +86,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const { action, messages, temperature, maxTokens } = body;
 
-  if (!action || !messages?.length) {
+  if (typeof action !== "string" || !Array.isArray(messages) || messages.length === 0) {
     return Response.json(
       { error: "Missing 'action' or 'messages'" },
       { status: 400 },
@@ -102,13 +102,18 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 
   // Only allow standard chat roles and a small fixed number of messages so
-  // callers can't smuggle extra developer/tool instructions upstream. The
-  // app's own client legitimately sends one "system" message (its prompt
-  // scaffolding) plus one "user" message.
+  // callers can't smuggle extra developer/tool instructions upstream.
+  // Validate that every message is an object with valid string role and content
+  // to prevent unhandled type errors or payload smuggling.
   const isAllowedShape =
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        typeof m === "object" &&
+        m !== null &&
+        typeof m.role === "string" &&
+        typeof m.content === "string" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system"),
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -125,7 +130,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  // Sanitize device ID to alphanumeric/hyphens up to 64 chars to prevent key manipulation
+  const deviceId = rawDeviceId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64) || "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
