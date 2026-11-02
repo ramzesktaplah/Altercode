@@ -9,8 +9,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -34,19 +36,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.AutoFixHigh
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,8 +52,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -75,31 +71,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ai.altercode.R
 import com.ai.altercode.data.CodeAction
 import com.ai.altercode.data.CodeLanguage
 import com.ai.altercode.data.UsageTracker
 import com.ai.altercode.ui.components.AlterCodeBottomBar
 import com.ai.altercode.ui.components.AlterCodeMark
 import com.ai.altercode.ui.components.CodeEditor
-import com.ai.altercode.ui.components.LanguageTile
+import com.ai.altercode.ui.components.LanguageLogo
 import com.ai.altercode.ui.navigation.Routes
 
-private val actionIcons: Map<CodeAction, ImageVector> = mapOf(
-    CodeAction.CONVERT to Icons.Filled.SwapHoriz,
-    CodeAction.REFACTOR to Icons.Filled.AutoFixHigh,
-    CodeAction.FIX to Icons.Filled.BugReport,
-    CodeAction.EXPLAIN to Icons.Filled.Lightbulb
+private val actionIcons: Map<CodeAction, Int> = mapOf(
+    CodeAction.CONVERT to R.drawable.ic_action_convert,
+    CodeAction.REFACTOR to R.drawable.ic_action_refactor,
+    CodeAction.FIX to R.drawable.ic_action_fix,
+    CodeAction.EXPLAIN to R.drawable.ic_action_explain
 )
 
 /**
@@ -238,12 +237,11 @@ fun HomeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
                     .padding(top = 6.dp, bottom = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 CodeAction.entries.forEach { action ->
-                    ActionChip(
+                    ActionCard(
                         action = action,
                         isSelected = state.selectedAction == action,
                         isRunning = state.runningAction == action,
@@ -251,42 +249,51 @@ fun HomeScreen(
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.selectAction(action)
-                        }
+                        },
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                Spacer(Modifier.width(4.dp))
             }
 
-            LanguageSection(
-                label = "Source Language",
-                labelIcon = Icons.Filled.Code,
-                selected = state.sourceLanguage,
-                options = CodeLanguage.sourceOptions,
-                onSelect = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.setSourceLanguage(it)
-                },
-                modifier = Modifier.padding(top = 10.dp)
-            )
-
-            // Convert is the only action with a second output language, so the
-            // target picker slides away for Refactor / Fix / Explain.
-            AnimatedVisibility(
-                visible = state.selectedAction == CodeAction.CONVERT,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+            // Both pickers live in one rounded panel (see design ref).
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(22.dp))
+                    .padding(horizontal = 14.dp, vertical = 14.dp)
             ) {
                 LanguageSection(
-                    label = "Target Language (Convert Output)",
-                    labelIcon = Icons.Filled.ArrowForward,
-                    selected = state.targetLanguage,
-                    options = CodeLanguage.targetOptions,
+                    label = "Source Language",
+                    labelIcon = Icons.Filled.Code,
+                    selected = state.sourceLanguage,
+                    options = CodeLanguage.sourceOptions,
                     onSelect = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        viewModel.setTargetLanguage(it)
-                    },
-                    modifier = Modifier.padding(top = 8.dp)
+                        viewModel.setSourceLanguage(it)
+                    }
                 )
+
+                // Convert is the only action with a second output language, so the
+                // target picker slides away for Refactor / Fix / Explain.
+                AnimatedVisibility(
+                    visible = state.selectedAction == CodeAction.CONVERT,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    LanguageSection(
+                        label = "Target Language (Convert Output)",
+                        labelIcon = Icons.Filled.ArrowForward,
+                        selected = state.targetLanguage,
+                        options = CodeLanguage.targetOptions,
+                        onSelect = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.setTargetLanguage(it)
+                        },
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
             }
 
             EditorCard(
@@ -519,7 +526,7 @@ private fun EditorCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                LanguageTile(language = state.editorLanguage, size = 18)
+                LanguageLogo(language = state.editorLanguage, size = 18.dp)
                 Text(
                     text = when {
                         state.sourceLanguage.isConcrete -> state.sourceLanguage.label
@@ -588,58 +595,66 @@ private fun EditorCard(
     }
 }
 
+/** Card-style action button (design ref): 3D icon on top, label below. */
 @Composable
-private fun ActionChip(
+private fun ActionCard(
     action: CodeAction,
     isSelected: Boolean,
     isRunning: Boolean,
     enabled: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    FilterChip(
-        selected = isSelected,
-        enabled = enabled,
-        onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
-        label = {
-            Text(
-                text = action.label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(
+                if (isSelected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                }
             )
-        },
-        leadingIcon = {
-            if (isRunning) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
+            .border(
+                width = if (isSelected) 2.dp else 1.dp,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                shape = shape
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (isRunning) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        } else {
+            Image(
+                painter = painterResource(actionIcons.getValue(action)),
+                contentDescription = null,
+                modifier = Modifier.size(26.dp)
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = action.label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            color = if (isSelected) {
+                MaterialTheme.colorScheme.primary
             } else {
-                Icon(
-                    imageVector = actionIcons.getValue(action),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
+                MaterialTheme.colorScheme.onSurface
             }
-        },
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            iconColor = MaterialTheme.colorScheme.primary,
-            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-            selectedLabelColor = MaterialTheme.colorScheme.primary,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.primary
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = enabled,
-            selected = isSelected,
-            borderColor = MaterialTheme.colorScheme.outline,
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
-            selectedBorderWidth = 1.dp
-        ),
-        modifier = Modifier.height(44.dp)
-    )
+        )
+    }
 }
 
 /** Full-width run button under the editor: names the action and language it will run. */
@@ -723,49 +738,105 @@ private fun LanguageSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             options.forEach { language ->
-                LanguageChip(
-                    language = language,
-                    isSelected = language == selected,
-                    onClick = { onSelect(language) }
-                )
+                if (language == CodeLanguage.AUTO) {
+                    AutoChip(
+                        isSelected = language == selected,
+                        onClick = { onSelect(language) }
+                    )
+                } else {
+                    LanguageChip(
+                        language = language,
+                        isSelected = language == selected,
+                        onClick = { onSelect(language) }
+                    )
+                }
             }
             Spacer(Modifier.width(4.dp))
         }
     }
 }
 
+/** Square chip holding just the language's logo mark (design ref). */
 @Composable
 private fun LanguageChip(
     language: CodeLanguage,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    FilterChip(
-        selected = isSelected,
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        label = {
-            Text(
-                text = language.label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .clip(shape)
+            .background(
+                if (isSelected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLowest
+                }
             )
-        },
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-            selectedLabelColor = MaterialTheme.colorScheme.primary
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = isSelected,
-            borderColor = MaterialTheme.colorScheme.outline,
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
-            selectedBorderWidth = 1.dp
-        ),
-        modifier = Modifier.height(38.dp)
-    )
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                shape = shape
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        LanguageLogo(language = language, size = 30.dp)
+    }
+}
+
+/** The Auto option keeps its wordmark beside the sparkle icon (design ref). */
+@Composable
+private fun AutoChip(isSelected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier = Modifier
+            .height(52.dp)
+            .clip(shape)
+            .background(
+                if (isSelected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLowest
+                }
+            )
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                shape = shape
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.AutoAwesome,
+            contentDescription = null,
+            tint = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            text = "Auto",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
 }
 
 @Composable

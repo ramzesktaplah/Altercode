@@ -65,7 +65,7 @@ fun LanguagePicker(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (showTile && selected.isConcrete) {
-                LanguageTile(language = selected, size = 18)
+                LanguageLogo(language = selected, size = 18.dp)
             }
             Text(
                 text = selected.label,
@@ -102,7 +102,7 @@ fun LanguagePicker(
                     },
                     leadingIcon = {
                         if (language.isConcrete) {
-                            LanguageTile(language = language, size = 20)
+                            LanguageLogo(language = language, size = 20.dp)
                         } else {
                             Icon(
                                 imageVector = Icons.Filled.KeyboardArrowDown,

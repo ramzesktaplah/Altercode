@@ -60,7 +60,7 @@ import com.ai.altercode.data.Snippet
 import com.ai.altercode.ui.components.AlterCodeBottomBar
 import com.ai.altercode.ui.components.AlterCodeMark
 import com.ai.altercode.ui.components.LanguageBadge
-import com.ai.altercode.ui.components.LanguageTile
+import com.ai.altercode.ui.components.LanguageLogo
 import com.ai.altercode.ui.navigation.Routes
 import com.ai.altercode.ui.relativeTime
 
@@ -188,7 +188,7 @@ fun SavedScreen(
                         label = language.label,
                         selected = filter == SavedFilter.Language(language),
                         onClick = { viewModel.setFilter(SavedFilter.Language(language)) },
-                        leading = { LanguageTile(language = language, size = 16) }
+                        leading = { LanguageLogo(language = language, size = 16.dp) }
                     )
                 }
             }
