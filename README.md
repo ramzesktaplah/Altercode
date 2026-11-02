@@ -6,13 +6,16 @@ AlterCode is an AI-powered developer tool and code assistant for Android. Built 
 
 ## 🚀 Features
 
+- **Redesigned Modern UI**: Refreshed home screen with dedicated action cards for Convert, Refactor, Fix, and Explain, complete with custom action icons.
+- **Polished Mobile Code Editor**: Built with Jetpack Compose featuring smooth scrolling, line numbers, and comfortable mobile typing ergonomics.
+- **Light, Dark & System Themes**: Full theme support with adaptive, high-contrast syntax highlighting palettes optimized for both bright daylight and low-light coding sessions.
+- **Language Brand Logos & Badges**: Quick language selection with crisp official brand marks across 11+ supported languages.
 - **Code Conversion**: Translate code snippets between programming languages (Kotlin, Python, TypeScript, C++, Go, Rust, Java, Swift, C#, PHP, JavaScript, etc.) while preserving logic and language-idiomatic style.
 - **Code Refactoring**: Optimize existing code structure, readability, and performance without altering behavior.
 - **Bug Fixing**: Automatically detect syntax errors, logic flaws, and edge cases, returning corrected code along with explanatory summaries.
 - **Code Explanation**: Breakdown complex code blocks into structured plain-English explanations formatted for mobile reading.
 - **Encrypted Local Storage**: Local history and saved snippets are stored securely using SQLCipher-encrypted SQLite databases (`SnippetDatabase`) and Android `EncryptedSharedPreferences`.
 - **Sliding-Window Rate Limiting**: Backend quota protection powered by Cloudflare Durable Objects.
-- **Dark Theme & Syntax Highlighting**: Styled specifically for comfortable mobile code viewing and editing.
 
 ---
 
