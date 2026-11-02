@@ -222,48 +222,65 @@ fun HomeScreen(
             )
         },
         bottomBar = {
-            AlterCodeBottomBar(currentRoute = Routes.HOME, onSelect = onNavigateTab)
+            // The bottom nav folds away while typing so the keyboard sits
+            // flush against the screen edge and the editor owns the space.
+            AnimatedVisibility(
+                visible = !isImeVisible,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                AlterCodeBottomBar(currentRoute = Routes.HOME, onSelect = onNavigateTab)
+            }
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .imePadding()
+                .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            // Action buttons sit on top. Tapping one only selects it —
-            // nothing is generated until the Generate button is pressed.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp, bottom = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // While the keyboard is up the editor takes over the whole
+            // area above it (like the focused-editor design ref), so the
+            // action row and language panel fold away until it closes.
+            AnimatedVisibility(
+                visible = !isImeVisible,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
             ) {
-                CodeAction.entries.forEach { action ->
-                    ActionCard(
-                        action = action,
-                        isSelected = state.selectedAction == action,
-                        isRunning = state.runningAction == action,
-                        enabled = !state.isRunning,
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.selectAction(action)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+                Column {
+                    // Action buttons sit on top. Tapping one only selects it —
+                    // nothing is generated until the Generate button is pressed.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp, bottom = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CodeAction.entries.forEach { action ->
+                            ActionCard(
+                                action = action,
+                                isSelected = state.selectedAction == action,
+                                isRunning = state.runningAction == action,
+                                enabled = !state.isRunning,
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    viewModel.selectAction(action)
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
 
-            // Both pickers live in one rounded panel (see design ref).
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(22.dp))
-                    .padding(horizontal = 14.dp, vertical = 14.dp)
-            ) {
+                    // Both pickers live in one rounded panel (see design ref).
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(22.dp))
+                            .padding(horizontal = 14.dp, vertical = 14.dp)
+                    ) {
                 LanguageSection(
                     label = "Source Language",
                     labelIcon = Icons.Filled.Code,
@@ -293,6 +310,8 @@ fun HomeScreen(
                         },
                         modifier = Modifier.padding(top = 6.dp)
                     )
+                }
+                }
                 }
             }
 
@@ -340,17 +359,24 @@ fun HomeScreen(
             } else {
                 "${state.selectedAction.label} ($sourceLabel)"
             }
-            GenerateButton(
-                label = generateLabel,
-                isRunning = state.isRunning,
-                onClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.run(state.selectedAction)
-                },
-                modifier = Modifier.padding(top = 12.dp)
-            )
-
-            Spacer(Modifier.height(12.dp))
+            AnimatedVisibility(
+                visible = !isImeVisible,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column {
+                    GenerateButton(
+                        label = generateLabel,
+                        isRunning = state.isRunning,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.run(state.selectedAction)
+                        },
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
         }
     }
 
