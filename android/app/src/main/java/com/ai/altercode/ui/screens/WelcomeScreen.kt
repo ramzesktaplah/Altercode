@@ -37,7 +37,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import com.ai.altercode.ui.theme.AccentBlue
-import com.ai.altercode.ui.theme.CanvasSlate
 
 const val PRIVACY_POLICY_URL = "https://ramzesktaplah.github.io/Official-Legal-Privacy-Documents-AlterCode/"
 
@@ -66,8 +65,8 @@ fun WelcomeScreen(onGetStarted: () -> Unit) {
                     Brush.verticalGradient(
                         colors = listOf(
                             AccentBlue.copy(alpha = 0.14f),
-                            CanvasSlate,
-                            CanvasSlate
+                            MaterialTheme.colorScheme.background,
+                            MaterialTheme.colorScheme.background
                         )
                     )
                 )

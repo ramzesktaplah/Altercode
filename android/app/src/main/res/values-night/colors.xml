@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark-mode launcher tile: blue braces on near-black instead of white. -->
+    <color name="ic_launcher_background">#0D1320</color>
+    <!-- Dark-mode splash background matching the dark app theme. -->
+    <color name="altercode_canvas">#121826</color>
+</resources>

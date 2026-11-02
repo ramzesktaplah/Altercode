@@ -1,9 +1,12 @@
 package com.ai.altercode.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -13,18 +16,33 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.ai.altercode.R
+import com.ai.altercode.data.ThemeMode
 
+// Shared brand palette
+val AccentBlue = Color(0xFF3B82F6)
+val AccentBlueSoft = Color(0xFF60A5FA)
+
+// Dark (original) palette
 val CanvasSlate = Color(0xFF121826)
 val SurfaceRaised = Color(0xFF1A2233)
 val SurfaceCard = Color(0xFF1E293B)
 val SurfaceStroke = Color(0xFF2B3648)
-val AccentBlue = Color(0xFF3B82F6)
-val AccentBlueSoft = Color(0xFF60A5FA)
 val SuccessGreen = Color(0xFF34C759)
 val DangerRed = Color(0xFFF87171)
 val TextPrimary = Color(0xFFF8FAFC)
 val TextSecondary = Color(0xFF94A3B8)
 val TextMuted = Color(0xFF64748B)
+
+// Light palette
+val CanvasMist = Color(0xFFF6F8FC)
+val SurfaceRaisedLight = Color(0xFFEDF1F8)
+val SurfaceCardLight = Color(0xFFE7ECF5)
+val SurfaceStrokeLight = Color(0xFFC6D0DF)
+val SuccessGreenLight = Color(0xFF1FA855)
+val DangerRedLight = Color(0xFFDC2626)
+val TextPrimaryLight = Color(0xFF0F172A)
+val TextSecondaryLight = Color(0xFF55627A)
+val TextMutedLight = Color(0xFF8B96A9)
 
 val MonoFamily: FontFamily = FontFamily(
     Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
@@ -46,9 +64,22 @@ data class CodeColors(
     val gutter: Color = Color(0xFF475569)
 )
 
+/** Light-background variant of the syntax palette (darker, higher-contrast inks). */
+private val LightCodeColors = CodeColors(
+    plain = Color(0xFF1E293B),
+    keyword = Color(0xFF9333EA),
+    function = Color(0xFF1D4ED8),
+    string = Color(0xFF15803D),
+    number = Color(0xFFB45309),
+    comment = Color(0xFF94A3B8),
+    type = Color(0xFFA16207),
+    punctuation = Color(0xFF64748B),
+    gutter = Color(0xFF94A3B8)
+)
+
 val LocalCodeColors = staticCompositionLocalOf { CodeColors() }
 
-private val AlterCodeColorScheme = darkColorScheme(
+private val AlterCodeDarkColorScheme = darkColorScheme(
     primary = AccentBlue,
     onPrimary = Color.White,
     primaryContainer = Color(0xFF1D3A6B),
@@ -77,6 +108,37 @@ private val AlterCodeColorScheme = darkColorScheme(
     errorContainer = Color(0xFF3A1717),
     onErrorContainer = Color(0xFFFFD9D9),
     scrim = Color(0xFF04070E)
+)
+
+private val AlterCodeLightColorScheme = lightColorScheme(
+    primary = Color(0xFF2563EB),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFD6E4FF),
+    onPrimaryContainer = Color(0xFF0A2A66),
+    secondary = Color(0xFF2F6FDB),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE3ECFB),
+    onSecondaryContainer = Color(0xFF1A3357),
+    tertiary = SuccessGreenLight,
+    onTertiary = Color.White,
+    background = CanvasMist,
+    onBackground = TextPrimaryLight,
+    surface = CanvasMist,
+    onSurface = TextPrimaryLight,
+    surfaceVariant = Color(0xFFE8EDF5),
+    onSurfaceVariant = TextSecondaryLight,
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF1F4FA),
+    surfaceContainer = SurfaceRaisedLight,
+    surfaceContainerHigh = SurfaceCardLight,
+    surfaceContainerHighest = Color(0xFFDFE6F1),
+    outline = SurfaceStrokeLight,
+    outlineVariant = Color(0xFFDDE4EE),
+    error = DangerRedLight,
+    onError = Color.White,
+    errorContainer = Color(0xFFFFE2E2),
+    onErrorContainer = Color(0xFF7A1111),
+    scrim = Color(0xFF101828)
 )
 
 private val AlterCodeTypography = Typography(
@@ -138,12 +200,29 @@ private val AlterCodeTypography = Typography(
     )
 )
 
-/** AlterCode is a dark-only, OLED-friendly developer surface. */
+/**
+ * AlterCode theme with Light, Dark, and System appearances. Light is the
+ * default; the syntax-highlighting palette follows the active appearance.
+ */
 @Composable
-fun AppTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = AlterCodeColorScheme,
-        typography = AlterCodeTypography,
-        content = content
-    )
+fun AppTheme(
+    themeMode: ThemeMode = ThemeMode.LIGHT,
+    content: @Composable () -> Unit
+) {
+    val isDark = when (themeMode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
+    val colorScheme = if (isDark) AlterCodeDarkColorScheme else AlterCodeLightColorScheme
+
+    CompositionLocalProvider(
+        LocalCodeColors provides if (isDark) CodeColors() else LightCodeColors
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = AlterCodeTypography,
+            content = content
+        )
+    }
 }

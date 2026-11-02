@@ -18,8 +18,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.altercode.ui.theme.AccentBlue
-import com.ai.altercode.ui.theme.AccentBlueSoft
+import androidx.compose.material3.MaterialTheme
 import com.ai.altercode.ui.theme.MonoFamily
 
 /** The AlterCode brace-and-dots wordmark glyph, `{••}`. */
@@ -38,7 +37,10 @@ fun AlterCodeMark(
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
-                            colors = listOf(AccentBlue.copy(alpha = 0.22f), AccentBlue.copy(alpha = 0f))
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0f)
+                            )
                         )
                     )
             )
@@ -61,7 +63,7 @@ fun AlterCodeMark(
 private fun Brace(text: String, size: TextUnit) {
     Text(
         text = text,
-        color = AccentBlue,
+        color = MaterialTheme.colorScheme.primary,
         fontFamily = MonoFamily,
         fontWeight = FontWeight.Bold,
         fontSize = size,
@@ -75,6 +77,6 @@ private fun Dot(size: Dp) {
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(AccentBlueSoft)
+            .background(MaterialTheme.colorScheme.secondary)
     )
 }

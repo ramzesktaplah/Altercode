@@ -5,6 +5,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** App appearance. Light is the factory default; System follows the OS setting. */
+enum class ThemeMode(val id: String, val label: String) {
+    LIGHT("light", "Light"),
+    DARK("dark", "Dark"),
+    SYSTEM("system", "System");
+
+    companion object {
+        fun fromId(value: String?): ThemeMode =
+            entries.firstOrNull { it.id == value } ?: LIGHT
+    }
+}
+
 /** Lightweight persisted preferences: onboarding state, prompt presets, last languages. */
 class SettingsRepository(context: Context) {
 
@@ -19,6 +31,9 @@ class SettingsRepository(context: Context) {
     )
     val presets: StateFlow<PromptPresets> = _presets.asStateFlow()
 
+    private val _themeMode = MutableStateFlow(ThemeMode.fromId(prefs.getString(KEY_THEME_MODE, null)))
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
     val hasOnboarded: Boolean get() = prefs.getBoolean(KEY_ONBOARDED, false)
 
     fun markOnboarded() {
@@ -32,6 +47,11 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_READABILITY, presets.focusOnReadability)
             .putBoolean(KEY_COMMENTS, presets.addInlineComments)
             .apply()
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        prefs.edit().putString(KEY_THEME_MODE, mode.id).apply()
     }
 
     var lastSourceLanguageId: String
@@ -59,5 +79,6 @@ class SettingsRepository(context: Context) {
         const val KEY_LAST_SOURCE = "last_source_lang"
         const val KEY_LAST_TARGET = "last_target_lang"
         const val KEY_DRAFT_CODE = "editor_draft_code"
+        const val KEY_THEME_MODE = "theme_mode"
     }
 }

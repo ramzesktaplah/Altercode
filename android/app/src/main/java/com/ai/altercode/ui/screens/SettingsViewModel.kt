@@ -7,6 +7,7 @@ import com.ai.altercode.ai.AiCodeService
 import com.ai.altercode.data.PromptPresets
 import com.ai.altercode.data.SettingsRepository
 import com.ai.altercode.data.SnippetRepository
+import com.ai.altercode.data.ThemeMode
 import com.ai.altercode.data.UsageTracker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,10 @@ class SettingsViewModel(
 ) : ViewModel() {
 
     val presets: StateFlow<PromptPresets> = settings.presets
+
+    val themeMode: StateFlow<ThemeMode> = settings.themeMode
+
+    fun setThemeMode(mode: ThemeMode) = settings.setThemeMode(mode)
 
     private val _snippetCount = MutableStateFlow(0)
     val snippetCount: StateFlow<Int> = _snippetCount.asStateFlow()
