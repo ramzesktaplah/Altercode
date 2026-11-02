@@ -1,15 +1,27 @@
 package com.ai.altercode.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
@@ -18,10 +30,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.MaterialTheme
 import com.ai.altercode.ui.theme.MonoFamily
+import kotlinx.coroutines.delay
 
-/** The AlterCode brace-and-dots wordmark glyph, `{••}`. */
+/**
+ * True once the launch fade-in has played this session. Provided at the app
+ * root so the logo animates only on the first screen of a launch — never
+ * again on tab switches or back navigation.
+ */
+val LocalLogoIntroPlayed = compositionLocalOf { mutableStateOf(false) }
+
+/** The AlterCode brace-and-dots wordmark glyph, `{••}`. Fades in once on launch. */
 @Composable
 fun AlterCodeMark(
     modifier: Modifier = Modifier,
@@ -29,7 +48,23 @@ fun AlterCodeMark(
     dotSize: Dp = 7.dp,
     showGlow: Boolean = false
 ) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    val introPlayed = LocalLogoIntroPlayed.current
+    var visible by remember { mutableStateOf(introPlayed.value) }
+    LaunchedEffect(Unit) {
+        if (!introPlayed.value) {
+            // Small beat lets the splash hand off before the mark appears.
+            delay(80)
+            visible = true
+            introPlayed.value = true
+        }
+    }
+    val launchAlpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(durationMillis = 450, easing = LinearEasing),
+        label = "logoFadeIn"
+    )
+
+    Box(modifier = modifier.alpha(launchAlpha), contentAlignment = Alignment.Center) {
         if (showGlow) {
             Box(
                 modifier = Modifier
