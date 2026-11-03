@@ -1,0 +1,6 @@
+# Sentinel's Journal
+
+## 2026-11-03 - Chat Proxy Request Payload Validation Bypass and Denial of Service
+**Vulnerability:** In `functions/index.ts`, `handleChat` checked `messages?.length` and `messages.length <= 2` without checking `Array.isArray(messages)`. Passing a non-array object with a length property (such as `{"length": 1}`) bypassed truthiness and length checks, subsequently throwing an unhandled `TypeError: messages.every is not a function` which crashed the Cloudflare Worker request handler (returning a 503 error). Furthermore, individual message items were not verified to be valid objects with string `content`, allowing malformed types to proceed to downstream processing.
+**Learning:** In TypeScript/JavaScript worker environments, type annotations on request payloads (`body = (await request.json()) as ClientRequest`) provide compile-time safety only and do not perform runtime validation. Object duck-typing can trick `.length` checks into executing array methods on non-arrays.
+**Prevention:** Always validate `Array.isArray(data)` alongside length and schema bounds for untrusted incoming JSON payloads, and explicitly validate item properties (`typeof m.content === "string"` and strict role allow-lists) before invoking collection methods.

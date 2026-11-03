@@ -86,7 +86,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const { action, messages, temperature, maxTokens } = body;
 
-  if (!action || !messages?.length) {
+  if (!action || !messages) {
     return Response.json(
       { error: "Missing 'action' or 'messages'" },
       { status: 400 },
@@ -101,18 +101,23 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  // Only allow standard chat roles and a small fixed number of messages so
-  // callers can't smuggle extra developer/tool instructions upstream. The
-  // app's own client legitimately sends one "system" message (its prompt
-  // scaffolding) plus one "user" message.
+  // Security: Strictly enforce messages array structure, role allow-list,
+  // string content type, and length bounds. Prevents prototype/object-duck-typing
+  // bypasses, denial of service crashes (TypeError on non-array), and prompt/type injection.
   const isAllowedShape =
+    Array.isArray(messages) &&
+    messages.length > 0 &&
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        typeof m.content === "string" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system"),
     );
   if (!isAllowedShape) {
     return Response.json(
-      { error: "Invalid message roles or count" },
+      { error: "Invalid message roles, count, or structure" },
       { status: 400 },
     );
   }
