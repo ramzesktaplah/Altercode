@@ -104,11 +104,13 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // Only allow standard chat roles and a small fixed number of messages so
   // callers can't smuggle extra developer/tool instructions upstream. The
   // app's own client legitimately sends one "system" message (its prompt
-  // scaffolding) plus one "user" message.
+  // scaffolding) plus one "user" message. Ensure content is strictly a string.
   const isAllowedShape =
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        (m.role === "user" || m.role === "assistant" || m.role === "system") &&
+        typeof m.content === "string",
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -121,11 +123,18 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // Key by client IP + device fingerprint so each device+IP combo
   // gets its own independent counter. Cloudflare sets CF-Connecting-IP
   // automatically; fall back to X-Forwarded-For if absent.
-  const clientIp =
+  // Security: Sanitize client IP and deviceId against header injection,
+  // arbitrary long strings, or DO delimiter manipulation.
+  const rawIp =
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const clientIp = /^[a-fA-F0-9.:]{1,45}$/.test(rawIp) ? rawIp : "unknown";
+
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "";
+  const deviceId = /^[a-zA-Z0-9_-]{1,64}$/.test(rawDeviceId)
+    ? rawDeviceId
+    : "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
