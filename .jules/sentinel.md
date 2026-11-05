@@ -1,0 +1,4 @@
+## 2026-11-02 - Defense-in-depth HTTP security headers and null-byte sanitation in Worker proxy
+**Vulnerability:** Edge proxy responses omitted defense-in-depth headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`), leaving downstream clients or web consumers exposed to MIME confusion and framing attacks. In addition, unvalidated message content types and unstripped null bytes could allow unexpected payload behavior or truncation.
+**Learning:** Cloudflare Workers do not automatically inject standard security response headers on custom endpoints; headers must be explicitly set on outgoing response instances before leaving the edge handler.
+**Prevention:** Intercept all outgoing responses in `functions/index.ts` to attach standard security headers and ensure message content strings are strictly typed and sanitized of null bytes prior to upstream dispatch.
