@@ -61,15 +61,27 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    let response: Response;
     if (url.pathname === "/ping") {
-      return Response.json({ ok: true, now: new Date().toISOString() });
+      response = Response.json({ ok: true, now: new Date().toISOString() });
+    } else if (url.pathname === "/v1/chat" && request.method === "POST") {
+      response = await handleChat(request, env);
+    } else {
+      response = new Response("not found", { status: 404 });
     }
 
-    if (url.pathname === "/v1/chat" && request.method === "POST") {
-      return handleChat(request, env);
-    }
+    // Attach defense-in-depth security headers to protect downstream clients
+    const headers = new Headers(response.headers);
+    headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("X-Frame-Options", "DENY");
+    headers.set("Referrer-Policy", "no-referrer");
+    headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
-    return new Response("not found", { status: 404 });
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   },
 };
 
@@ -108,13 +120,22 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const isAllowedShape =
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        (m.role === "user" || m.role === "assistant" || m.role === "system") &&
+        typeof m.content === "string",
     );
   if (!isAllowedShape) {
     return Response.json(
-      { error: "Invalid message roles or count" },
+      { error: "Invalid message roles, count, or format" },
       { status: 400 },
     );
+  }
+
+  // Strip null bytes from input messages to prevent null-byte poisoning or truncation
+  for (const m of messages) {
+    if (m.content.includes("\u0000")) {
+      m.content = m.content.replace(/\0/g, "");
+    }
   }
 
   // ---- Server-side rate limiting ----
