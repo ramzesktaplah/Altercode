@@ -53,6 +53,11 @@ class RateLimiter implements DurableObject {
     sql.exec(
       `CREATE TABLE IF NOT EXISTS requests (timestamp INTEGER)`,
     );
+    // Bolt: Index on timestamp enables fast covering index scans for sliding-window
+    // range queries (>= ? and < ?), avoiding full table scans on every rate-limit check.
+    sql.exec(
+      `CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests (timestamp)`,
+    );
 
     // Lazy cleanup: remove rows older than 24h.
     sql.exec(`DELETE FROM requests WHERE timestamp < ?`, cutoff);
