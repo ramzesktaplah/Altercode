@@ -66,7 +66,15 @@ export default {
     }
 
     if (url.pathname === "/v1/chat" && request.method === "POST") {
-      return handleChat(request, env);
+      try {
+        return await handleChat(request, env);
+      } catch (error) {
+        console.error("Unhandled error in handleChat:", error);
+        return Response.json(
+          { error: "Internal server error" },
+          { status: 500 },
+        );
+      }
     }
 
     return new Response("not found", { status: 404 });
@@ -74,9 +82,9 @@ export default {
 };
 
 async function handleChat(request: Request, env: Env): Promise<Response> {
-  let body: ClientRequest;
+  let body: unknown;
   try {
-    body = (await request.json()) as ClientRequest;
+    body = await request.json();
   } catch {
     return Response.json(
       { error: "Invalid JSON body" },
@@ -84,9 +92,16 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  const { action, messages, temperature, maxTokens } = body;
+  if (typeof body !== "object" || body === null) {
+    return Response.json(
+      { error: "Invalid request body: expected an object" },
+      { status: 400 },
+    );
+  }
 
-  if (!action || !messages?.length) {
+  const { action, messages, temperature, maxTokens } = body as Partial<ClientRequest>;
+
+  if (typeof action !== "string" || !Array.isArray(messages) || messages.length === 0) {
     return Response.json(
       { error: "Missing 'action' or 'messages'" },
       { status: 400 },
@@ -108,7 +123,13 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const isAllowedShape =
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        typeof m === "object" &&
+        m !== null &&
+        typeof (m as ChatMessage).content === "string" &&
+        ((m as ChatMessage).role === "user" ||
+          (m as ChatMessage).role === "assistant" ||
+          (m as ChatMessage).role === "system"),
     );
   if (!isAllowedShape) {
     return Response.json(
