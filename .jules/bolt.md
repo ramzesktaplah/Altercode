@@ -1,0 +1,3 @@
+## 2026-11-08 - Precomputing SyntaxHighlighter Keyword Sets
+**Learning:** In Compose editor text transformations (`VisualTransformation`), syntax highlighting runs on every keystroke. Building temporary `Set` instances with `commonKeywords + setOf(...)` during tokenization creates continuous GC churn and allocations on the UI thread. Precomputing and caching immutable Sets per language eliminates per-keystroke allocations.
+**Action:** When writing or extending high-frequency tokenizers or text transformations in Jetpack Compose, always pre-allocate language-specific token or keyword sets statically rather than concatenating sets dynamically per invocation.
