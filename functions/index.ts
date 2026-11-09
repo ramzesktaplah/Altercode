@@ -105,10 +105,17 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // callers can't smuggle extra developer/tool instructions upstream. The
   // app's own client legitimately sends one "system" message (its prompt
   // scaffolding) plus one "user" message.
+  // Validate array shape and types to prevent crashes/DoS from malformed input.
   const isAllowedShape =
+    Array.isArray(messages) &&
+    messages.length >= 1 &&
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        typeof m.content === "string" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system"),
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -125,7 +132,9 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "";
+  // Sanitize deviceId to prevent DO key injection or unbounded key length abuse.
+  const deviceId = /^[a-zA-Z0-9_-]{1,64}$/.test(rawDeviceId) ? rawDeviceId : "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
