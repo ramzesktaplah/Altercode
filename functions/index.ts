@@ -105,14 +105,21 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // callers can't smuggle extra developer/tool instructions upstream. The
   // app's own client legitimately sends one "system" message (its prompt
   // scaffolding) plus one "user" message.
+  // Validate both message roles and string content before consuming rate limits.
   const isAllowedShape =
+    Array.isArray(messages) &&
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system") &&
+        typeof m.content === "string" &&
+        m.content.trim().length > 0,
     );
   if (!isAllowedShape) {
     return Response.json(
-      { error: "Invalid message roles or count" },
+      { error: "Invalid message roles, count, or content" },
       { status: 400 },
     );
   }
