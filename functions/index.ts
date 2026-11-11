@@ -104,11 +104,13 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // Only allow standard chat roles and a small fixed number of messages so
   // callers can't smuggle extra developer/tool instructions upstream. The
   // app's own client legitimately sends one "system" message (its prompt
-  // scaffolding) plus one "user" message.
+  // scaffolding) plus one "user" message. Validate content is a string.
   const isAllowedShape =
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        (m.role === "user" || m.role === "assistant" || m.role === "system") &&
+        typeof m.content === "string",
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -125,7 +127,12 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  // Validate and sanitize X-Device-Id to prevent header/DO key injection or unbounded key length.
+  const rawDeviceId = request.headers.get("X-Device-Id");
+  const deviceId =
+    rawDeviceId && /^[a-zA-Z0-9_-]{1,64}$/.test(rawDeviceId)
+      ? rawDeviceId
+      : "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
