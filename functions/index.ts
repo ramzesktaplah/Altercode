@@ -62,10 +62,16 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/ping") {
+      if (request.method !== "GET") {
+        return new Response("method not allowed", { status: 405 });
+      }
       return Response.json({ ok: true, now: new Date().toISOString() });
     }
 
-    if (url.pathname === "/v1/chat" && request.method === "POST") {
+    if (url.pathname === "/v1/chat") {
+      if (request.method !== "POST") {
+        return new Response("method not allowed", { status: 405 });
+      }
       return handleChat(request, env);
     }
 
@@ -101,14 +107,18 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  // Only allow standard chat roles and a small fixed number of messages so
-  // callers can't smuggle extra developer/tool instructions upstream. The
-  // app's own client legitimately sends one "system" message (its prompt
-  // scaffolding) plus one "user" message.
+  // Only allow standard chat roles, string contents, and a small fixed number
+  // of messages so callers can't smuggle malformed objects or instructions.
   const isAllowedShape =
+    Array.isArray(messages) &&
+    messages.length > 0 &&
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m.role === "string" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system") &&
+        typeof m.content === "string",
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -121,12 +131,14 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // Key by client IP + device fingerprint so each device+IP combo
   // gets its own independent counter. Cloudflare sets CF-Connecting-IP
   // automatically; fall back to X-Forwarded-For if absent.
+  // Sanitize deviceId to prevent DO key injection or excessively long keys.
   const clientIp =
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
-  const rateLimitKey = `${clientIp}:${deviceId}`;
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const sanitizedDeviceId = rawDeviceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "unknown";
+  const rateLimitKey = `${clientIp}:${sanitizedDeviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
     "https://do/check",
