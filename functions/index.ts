@@ -7,9 +7,8 @@
 // API keys are stored as private server env vars and never exposed to the client.
 //
 // Security notes:
-// - No CORS headers are emitted: browsers cannot call this proxy, so a
-//   malicious webpage can't burn the Groq/Gemini quota. The Android app is a
-//   native client and is unaffected by CORS.
+// - Cross-origin browser requests are explicitly blocked (rejecting Origin headers)
+//   and no CORS headers are emitted. Native Android clients do not send Origin.
 // - Only `system`/`user`/`assistant` message roles are forwarded (max 2
 //   messages), so callers can't inject arbitrary developer/tool instructions.
 // - Upstream provider error bodies are never relayed to clients.
@@ -74,6 +73,11 @@ export default {
 };
 
 async function handleChat(request: Request, env: Env): Promise<Response> {
+  // Reject browser-originated requests to protect API quota from cross-origin web exploitation.
+  if (request.headers.get("Origin") !== null) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   let body: ClientRequest;
   try {
     body = (await request.json()) as ClientRequest;
@@ -86,7 +90,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const { action, messages, temperature, maxTokens } = body;
 
-  if (!action || !messages?.length) {
+  if (!action || !Array.isArray(messages) || messages.length === 0) {
     return Response.json(
       { error: "Missing 'action' or 'messages'" },
       { status: 400 },
@@ -108,7 +112,11 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const isAllowedShape =
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system") &&
+        typeof m.content === "string",
     );
   if (!isAllowedShape) {
     return Response.json(
