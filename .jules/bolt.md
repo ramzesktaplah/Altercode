@@ -1,0 +1,3 @@
+## 2026-09-26 - Single AnnotatedString vs N Text Composables for Jetpack Compose Line Gutters
+**Learning:** In Jetpack Compose code editors, emitting a loop of `Text` composables inside a `Column` for line numbers generates O(N) LayoutNodes, causing significant composition and layout overhead on cursor movement/typing. Replacing it with a single `Text` composable rendering an `AnnotatedString` reduces layout node count from O(N) to O(1) while maintaining exact line height alignment.
+**Action:** Always render repetitive formatted text lines in Compose using a single `AnnotatedString` when fixed `lineHeight` is used, rather than emitting individual `Text` nodes in a `Column`.

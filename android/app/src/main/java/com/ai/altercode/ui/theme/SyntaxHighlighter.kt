@@ -27,30 +27,40 @@ object SyntaxHighlighter {
         "sealed", "when", "companion", "operator", "readonly", "abstract", "virtual"
     )
 
-    private fun keywords(language: CodeLanguage): Set<String> = when (language) {
-        CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
-        CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
-        CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
-        CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
-        CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
-        CodeLanguage.LUA -> commonKeywords + setOf("local", "elseif", "nil", "repeat", "until", "require", "pairs", "ipairs", "print")
-        CodeLanguage.RUBY -> commonKeywords + setOf("require", "module", "nil", "puts", "attr_accessor", "begin", "rescue", "ensure", "elsif", "unless", "do", "end", "yield", "lambda", "proc")
-        CodeLanguage.C -> commonKeywords + setOf("sizeof", "typedef", "include", "define", "union", "extern", "signed", "unsigned", "NULL")
-        CodeLanguage.DART -> commonKeywords + setOf("late", "library", "get", "set", "mixin", "required", "print")
-        CodeLanguage.OBJECTIVE_C -> commonKeywords + setOf("NSLog", "nil", "YES", "NO", "instancetype", "nonatomic", "strong", "weak", "synthesize", "property")
-        CodeLanguage.R_LANG -> commonKeywords + setOf("library", "require", "TRUE", "FALSE", "NULL", "NA", "Inf", "sum", "mean", "matrix")
-        CodeLanguage.PERL -> commonKeywords + setOf("my", "our", "sub", "use", "no", "require", "print", "unless", "elsif", "foreach", "last", "next", "undef")
-        CodeLanguage.HASKELL -> commonKeywords + setOf("module", "where", "let", "data", "newtype", "instance", "deriving", "Maybe", "Just", "Nothing", "import")
-        else -> commonKeywords
+    // Performance optimization: Precompute keyword sets per language to avoid map/set heap allocations on every highlight pass
+    private val keywordSets: Map<CodeLanguage, Set<String>> = CodeLanguage.entries.associateWith { language ->
+        when (language) {
+            CodeLanguage.PYTHON -> commonKeywords + setOf("def", "elif", "None", "True", "False", "print")
+            CodeLanguage.RUST -> commonKeywords + setOf("fn", "let", "mut", "impl", "crate", "Some", "None", "Ok", "Err")
+            CodeLanguage.GO -> commonKeywords + setOf("func", "go", "defer", "chan", "range", "nil", "map")
+            CodeLanguage.SWIFT -> commonKeywords + setOf("guard", "let", "var", "func", "nil", "some", "any")
+            CodeLanguage.PHP -> commonKeywords + setOf("echo", "elseif", "foreach", "endif", "array")
+            CodeLanguage.LUA -> commonKeywords + setOf("local", "elseif", "nil", "repeat", "until", "require", "pairs", "ipairs", "print")
+            CodeLanguage.RUBY -> commonKeywords + setOf("require", "module", "nil", "puts", "attr_accessor", "begin", "rescue", "ensure", "elsif", "unless", "do", "end", "yield", "lambda", "proc")
+            CodeLanguage.C -> commonKeywords + setOf("sizeof", "typedef", "include", "define", "union", "extern", "signed", "unsigned", "NULL")
+            CodeLanguage.DART -> commonKeywords + setOf("late", "library", "get", "set", "mixin", "required", "print")
+            CodeLanguage.OBJECTIVE_C -> commonKeywords + setOf("NSLog", "nil", "YES", "NO", "instancetype", "nonatomic", "strong", "weak", "synthesize", "property")
+            CodeLanguage.R_LANG -> commonKeywords + setOf("library", "require", "TRUE", "FALSE", "NULL", "NA", "Inf", "sum", "mean", "matrix")
+            CodeLanguage.PERL -> commonKeywords + setOf("my", "our", "sub", "use", "no", "require", "print", "unless", "elsif", "foreach", "last", "next", "undef")
+            CodeLanguage.HASKELL -> commonKeywords + setOf("module", "where", "let", "data", "newtype", "instance", "deriving", "Maybe", "Just", "Nothing", "import")
+            else -> commonKeywords
+        }
     }
 
-    private fun lineCommentTokens(language: CodeLanguage): List<String> = when (language) {
-        CodeLanguage.PYTHON -> listOf("#")
-        CodeLanguage.PHP -> listOf("//", "#")
-        CodeLanguage.LUA, CodeLanguage.HASKELL -> listOf("--")
-        CodeLanguage.RUBY, CodeLanguage.PERL, CodeLanguage.R_LANG -> listOf("#")
-        else -> listOf("//")
+    // Performance optimization: Precompute line comment token lists per language
+    private val lineCommentsMap: Map<CodeLanguage, List<String>> = CodeLanguage.entries.associateWith { language ->
+        when (language) {
+            CodeLanguage.PYTHON -> listOf("#")
+            CodeLanguage.PHP -> listOf("//", "#")
+            CodeLanguage.LUA, CodeLanguage.HASKELL -> listOf("--")
+            CodeLanguage.RUBY, CodeLanguage.PERL, CodeLanguage.R_LANG -> listOf("#")
+            else -> listOf("//")
+        }
     }
+
+    private fun keywords(language: CodeLanguage): Set<String> = keywordSets[language] ?: commonKeywords
+
+    private fun lineCommentTokens(language: CodeLanguage): List<String> = lineCommentsMap[language] ?: listOf("//")
 
     fun highlight(
         code: String,
@@ -136,7 +146,7 @@ object SyntaxHighlighter {
                 continue
             }
 
-            appendStyled(char.toString(), colors.punctuation)
+            appendStyled(char, colors.punctuation)
             index++
         }
     }
@@ -161,5 +171,12 @@ object SyntaxHighlighter {
         color: androidx.compose.ui.graphics.Color
     ) {
         withStyle(SpanStyle(color = color)) { append(text) }
+    }
+
+    private fun androidx.compose.ui.text.AnnotatedString.Builder.appendStyled(
+        char: Char,
+        color: androidx.compose.ui.graphics.Color
+    ) {
+        withStyle(SpanStyle(color = color)) { append(char) }
     }
 }

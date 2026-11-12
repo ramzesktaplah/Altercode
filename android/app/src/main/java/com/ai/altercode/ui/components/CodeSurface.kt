@@ -27,11 +27,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.altercode.data.CodeLanguage
@@ -45,6 +48,9 @@ private val codeTextStyle = TextStyle(
     lineHeight = 22.sp
 )
 
+/** Fast line counter that avoids splitting strings into lists. */
+private fun countLines(text: String): Int = if (text.isEmpty()) 1 else text.count { it == '\n' } + 1
+
 /** Read-only, syntax-highlighted code view with a line-number gutter. */
 @Composable
 fun CodeBlock(
@@ -56,7 +62,7 @@ fun CodeBlock(
     val highlighted = remember(code, language, codeColors) {
         SyntaxHighlighter.highlight(code, language, codeColors)
     }
-    val lineCount = remember(code) { code.lines().size }
+    val lineCount = remember(code) { countLines(code) }
 
     Row(
         modifier = modifier
@@ -116,7 +122,7 @@ fun CodeEditor(
     enabled: Boolean = true
 ) {
     val codeColors = LocalCodeColors.current
-    val lineCount = remember(value.text) { value.text.lines().size }
+    val lineCount = remember(value.text) { countLines(value.text) }
     // Current cursor line (1-based) drives the active gutter highlight.
     val activeLine = remember(value.text, value.selection) {
         val cursor = value.selection.end.coerceIn(0, value.text.length)
@@ -180,25 +186,31 @@ fun CodeEditor(
 @Composable
 private fun LineGutter(lineCount: Int, activeLine: Int = 0) {
     val codeColors = LocalCodeColors.current
-    Column(
+    val activeColor = MaterialTheme.colorScheme.primary
+    val gutterColor = codeColors.gutter
+
+    // Optimization: Build line numbers as a single AnnotatedString to render 1 Text node
+    // instead of emitting N individual Text composables inside a Column.
+    val gutterText = remember(lineCount, activeLine, activeColor, gutterColor) {
+        buildAnnotatedString {
+            for (line in 1..lineCount) {
+                val color = if (line == activeLine) activeColor else gutterColor
+                withStyle(SpanStyle(color = color)) {
+                    append(line.toString())
+                }
+                if (line < lineCount) append("\n")
+            }
+        }
+    }
+
+    Text(
+        text = gutterText,
+        style = codeTextStyle,
+        textAlign = TextAlign.End,
         modifier = Modifier
             .width(if (lineCount >= 100) 42.dp else 32.dp)
             .padding(end = 12.dp)
-    ) {
-        for (line in 1..lineCount) {
-            Text(
-                text = line.toString(),
-                style = codeTextStyle,
-                color = if (line == activeLine) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    codeColors.gutter
-                },
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
+    )
 }
 
 /** Convenience wrapper to render an annotated string in the shared code style. */
