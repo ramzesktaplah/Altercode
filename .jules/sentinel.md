@@ -1,0 +1,4 @@
+## 2026-03-24 - Durable Object Rate-Limiting Key & Message Validation
+**Vulnerability:** Untrusted client headers (`X-Device-Id`, `X-Forwarded-For`) and malformed JSON messages could cause Durable Object key injection, type confusion, or unhandled 500 runtime exceptions in Cloudflare Workers.
+**Learning:** In Cloudflare Workers routing to Durable Objects via custom key headers, client headers must be strictly validated against allowed character sets (`/^[a-zA-Z0-9_-]{1,64}$/`) to prevent key injection and excessive DO instantiation. Furthermore, JSON payload elements must be strictly type-checked (`typeof m.content === "string"`) to prevent runtime TypeErrors and upstream provider payload injection.
+**Prevention:** Always sanitize header values before using them as DO dispatch IDs and validate array item types before accessing object properties in Worker API endpoints.
