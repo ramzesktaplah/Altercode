@@ -86,7 +86,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const { action, messages, temperature, maxTokens } = body;
 
-  if (!action || !messages?.length) {
+  if (!action || !messages) {
     return Response.json(
       { error: "Missing 'action' or 'messages'" },
       { status: 400 },
@@ -106,9 +106,15 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // app's own client legitimately sends one "system" message (its prompt
   // scaffolding) plus one "user" message.
   const isAllowedShape =
+    Array.isArray(messages) &&
+    messages.length > 0 &&
     messages.length <= 2 &&
     messages.every(
-      (m) => m.role === "user" || m.role === "assistant" || m.role === "system",
+      (m) =>
+        m &&
+        typeof m === "object" &&
+        typeof m.content === "string" &&
+        (m.role === "user" || m.role === "assistant" || m.role === "system"),
     );
   if (!isAllowedShape) {
     return Response.json(
@@ -125,7 +131,10 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     request.headers.get("CF-Connecting-IP") ??
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
     "unknown";
-  const deviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  const rawDeviceId = request.headers.get("X-Device-Id") ?? "unknown";
+  // Sanitize device ID to prevent header injection or key bloat
+  const deviceId =
+    rawDeviceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 128) || "unknown";
   const rateLimitKey = `${clientIp}:${deviceId}`;
 
   const rateLimitResponse = await env.DO.fetch(
@@ -165,7 +174,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   }
 
   // Clamp temperature and maxTokens to safe ranges.
-  const safeTemp = Math.max(0, Math.min(2, Number(temperature) || 0.2));
+  const parsedTemp = typeof temperature === "number" ? temperature : Number(temperature);
+  const safeTemp = !isNaN(parsedTemp) ? Math.max(0, Math.min(2, parsedTemp)) : 0.2;
   const safeMaxTokens = Math.max(1, Math.min(MAX_MAX_TOKENS, Math.floor(Number(maxTokens) || 4000)));
 
   // Load-test dry-run: an opt-in header lets synthetic requests exercise the
