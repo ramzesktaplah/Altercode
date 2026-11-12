@@ -86,4 +86,6 @@ dependencies {
     implementation(libs.androidx.sqlite)
     implementation(libs.androidx.security.crypto)
     debugImplementation(libs.androidx.ui.tooling)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation(kotlin("test"))
 }
